@@ -1,5 +1,7 @@
 function App() {
-  return <h1>Ecommerce Admin Panel</h1>;
+  return (
+    <h1 className="text-3xl font-bold text-blue-600">Ecommerce Admin Panel</h1>
+  );
 }
 
 export default App;
