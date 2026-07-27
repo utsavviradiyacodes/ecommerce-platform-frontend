@@ -6,7 +6,7 @@ import {
   selectIsLoggingOut,
 } from "../features/auth/authSlice.js";
 import { hasAdminPermission } from "../utils/hasAdminPermission.js";
-import { ADMIN_PERMISSIONS } from "../constants/adminPermissions.js";
+import { ADMIN_NAV_ITEMS } from "../constants/adminNavigation.js";
 
 function AdminLayout() {
   const dispatch = useDispatch();
@@ -14,29 +14,16 @@ function AdminLayout() {
   const currentAdmin = useSelector(selectCurrentAdmin);
   const isLoggingOut = useSelector(selectIsLoggingOut);
 
-  const canManageProducts = hasAdminPermission(
-    currentAdmin,
-    ADMIN_PERMISSIONS.PRODUCTS
-  );
-
-  const canManageSellers = hasAdminPermission(
-    currentAdmin,
-    ADMIN_PERMISSIONS.SELLERS
-  );
-
-  const canManageOrders = hasAdminPermission(
-    currentAdmin,
-    ADMIN_PERMISSIONS.ORDERS
-  );
-
-  const canManageCustomers = hasAdminPermission(
-    currentAdmin,
-    ADMIN_PERMISSIONS.CUSTOMERS
-  );
-
   function handleLogout() {
     dispatch(logoutAdminThunk());
   }
+
+  const visibleNavItems = ADMIN_NAV_ITEMS.filter((item) => {
+    return (
+      item.permission === null ||
+      hasAdminPermission(currentAdmin, item.permission)
+    );
+  });
 
   return (
     <div>
@@ -44,19 +31,11 @@ function AdminLayout() {
         <span>{currentAdmin?.name || currentAdmin?.email}</span>
 
         <nav>
-          <NavLink to="/admin/dashboard">Dashboard</NavLink>
-
-          {canManageProducts && (
-            <NavLink to="/admin/products">Products</NavLink>
-          )}
-
-          {canManageSellers && <NavLink to="/admin/sellers">Sellers</NavLink>}
-
-          {canManageOrders && <NavLink to="/admin/orders">Orders</NavLink>}
-
-          {canManageCustomers && (
-            <NavLink to="/admin/customers">Customers</NavLink>
-          )}
+          {visibleNavItems.map((item) => (
+            <NavLink key={item.to} to={item.to}>
+              {item.label}
+            </NavLink>
+          ))}
         </nav>
 
         <button type="button" onClick={handleLogout} disabled={isLoggingOut}>
