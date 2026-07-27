@@ -8,6 +8,10 @@ import { store } from "./app/store.js";
 
 import { BrowserRouter } from "react-router";
 
+import { initializeAdminSessionThunk } from "./features/auth/authSlice.js";
+
+store.dispatch(initializeAdminSessionThunk());
+
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <Provider store={store}>

@@ -1,5 +1,9 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
-import { loginAdmin } from "./authApi";
+import {
+  loginAdmin,
+  refreshAdminAccessToken,
+  getCurrentAdmin,
+} from "./authApi";
 
 const initialState = {
   user: null,
@@ -27,6 +31,21 @@ export const loginAdminThunk = createAsyncThunk(
   }
 );
 
+export const initializeAdminSessionThunk = createAsyncThunk(
+  "auth/initializeAdminSession",
+  async () => {
+    const refreshResponse = await refreshAdminAccessToken();
+    const accessToken = refreshResponse.token;
+
+    const currentAdminResponse = await getCurrentAdmin(accessToken);
+
+    return {
+      accessToken,
+      user: currentAdminResponse.data,
+    };
+  }
+);
+
 const authSlice = createSlice({
   name: "auth",
   initialState,
@@ -34,12 +53,18 @@ const authSlice = createSlice({
   reducers: {},
 
   selectors: {
+    selectIsAuthenticated: (sliceState) =>
+      Boolean(sliceState.user && sliceState.accessToken),
+
+    selectIsInitializing: (sliceState) => sliceState.isInitializing,
     selectIsLoading: (sliceState) => sliceState.isLoading,
     selectError: (sliceState) => sliceState.error,
   },
 
   extraReducers: (builder) => {
     builder
+
+      // ----------------------------loginAdminThunk------------------------------
       .addCase(loginAdminThunk.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -55,10 +80,31 @@ const authSlice = createSlice({
       .addCase(loginAdminThunk.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
+      })
+
+      // ----------------------------initializeAdminSessionThunk--------------------
+
+      .addCase(initializeAdminSessionThunk.pending, (state) => {
+        state.isInitializing = true;
+      })
+      .addCase(initializeAdminSessionThunk.fulfilled, (state, action) => {
+        state.user = action.payload.user;
+        state.accessToken = action.payload.accessToken;
+        state.isInitializing = false;
+      })
+      .addCase(initializeAdminSessionThunk.rejected, (state) => {
+        state.user = null;
+        state.accessToken = null;
+        state.isInitializing = false;
       });
   },
 });
 
-export const { selectIsLoading, selectError } = authSlice.selectors;
+export const {
+  selectIsAuthenticated,
+  selectIsInitializing,
+  selectIsLoading,
+  selectError,
+} = authSlice.selectors;
 
 export default authSlice.reducer;
