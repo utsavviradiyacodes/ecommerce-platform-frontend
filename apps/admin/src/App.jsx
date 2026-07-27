@@ -1,6 +1,12 @@
+import { Navigate, Route, Routes } from "react-router";
+import LoginPage from "./pages/auth/LoginPage.jsx";
+
 function App() {
   return (
-    <h1 className="text-3xl font-bold text-blue-600">Ecommerce Admin Panel</h1>
+    <Routes>
+      <Route path="/admin/login" element={<LoginPage />} />
+      <Route path="/" element={<Navigate to="/admin/login" replace />} />
+    </Routes>
   );
 }
 
