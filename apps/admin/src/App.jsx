@@ -1,10 +1,12 @@
 import { useSelector } from "react-redux";
 import { Navigate, Route, Routes } from "react-router";
+
 import { selectIsInitializing } from "./features/auth/authSlice.js";
-import LoginPage from "./pages/auth/LoginPage.jsx";
-import PublicOnlyRoute from "./routes/PublicOnlyRoute.jsx";
-import ProtectedRoute from "./routes/ProtectedRoute.jsx";
+import AdminLayout from "./layouts/AdminLayout.jsx";
 import DashboardPage from "./pages/dashboard/DashboardPage.jsx";
+import LoginPage from "./pages/auth/LoginPage.jsx";
+import ProtectedRoute from "./routes/ProtectedRoute.jsx";
+import PublicOnlyRoute from "./routes/PublicOnlyRoute.jsx";
 
 function App() {
   const isInitializing = useSelector(selectIsInitializing);
@@ -20,10 +22,14 @@ function App() {
       </Route>
 
       <Route element={<ProtectedRoute />}>
-        <Route path="/admin/dashboard" element={<DashboardPage />} />
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<Navigate to="dashboard" replace />} />
+
+          <Route path="dashboard" element={<DashboardPage />} />
+        </Route>
       </Route>
 
-      <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
+      <Route path="/" element={<Navigate to="/admin" replace />} />
     </Routes>
   );
 }

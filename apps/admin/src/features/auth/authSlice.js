@@ -3,13 +3,15 @@ import {
   loginAdmin,
   refreshAdminAccessToken,
   getCurrentAdmin,
+  logoutAdmin,
 } from "./authApi";
 
 const initialState = {
-  user: null,
+  admin: null,
   accessToken: null,
   isInitializing: true,
   isLoading: false,
+  isLoggingOut: false,
   error: null,
 };
 
@@ -41,8 +43,26 @@ export const initializeAdminSessionThunk = createAsyncThunk(
 
     return {
       accessToken,
-      user: currentAdminResponse.data,
+      admin: currentAdminResponse.data,
     };
+  }
+);
+
+export const logoutAdminThunk = createAsyncThunk(
+  "auth/logoutAdmin",
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await logoutAdmin();
+
+      return response;
+    } catch (error) {
+      const errorMessage =
+        error.response?.data?.message ||
+        error.message ||
+        "Unable to log out. Please try again.";
+
+      return rejectWithValue(errorMessage);
+    }
   }
 );
 
@@ -53,10 +73,12 @@ const authSlice = createSlice({
   reducers: {},
 
   selectors: {
+    selectCurrentAdmin: (sliceState) => sliceState.admin,
     selectIsAuthenticated: (sliceState) =>
-      Boolean(sliceState.user && sliceState.accessToken),
-
+      Boolean(sliceState.admin && sliceState.accessToken),
+    selectAccessToken: (sliceState) => sliceState.accessToken,
     selectIsInitializing: (sliceState) => sliceState.isInitializing,
+    selectIsLoggingOut: (sliceState) => sliceState.isLoggingOut,
     selectIsLoading: (sliceState) => sliceState.isLoading,
     selectError: (sliceState) => sliceState.error,
   },
@@ -70,11 +92,11 @@ const authSlice = createSlice({
         state.error = null;
       })
       .addCase(loginAdminThunk.fulfilled, (state, action) => {
-        const { token, ...user } = action.payload.data;
+        const { token, ...admin } = action.payload.data;
 
         state.isLoading = false;
         state.accessToken = token;
-        state.user = user;
+        state.admin = admin;
         state.error = null;
       })
       .addCase(loginAdminThunk.rejected, (state, action) => {
@@ -88,21 +110,41 @@ const authSlice = createSlice({
         state.isInitializing = true;
       })
       .addCase(initializeAdminSessionThunk.fulfilled, (state, action) => {
-        state.user = action.payload.user;
+        state.admin = action.payload.admin;
         state.accessToken = action.payload.accessToken;
         state.isInitializing = false;
       })
       .addCase(initializeAdminSessionThunk.rejected, (state) => {
-        state.user = null;
+        state.admin = null;
         state.accessToken = null;
         state.isInitializing = false;
+      })
+
+      // ----------------------------logoutAdminThunk----------------------
+
+      .addCase(logoutAdminThunk.pending, (state) => {
+        state.isLoggingOut = true;
+        state.error = null;
+      })
+      .addCase(logoutAdminThunk.fulfilled, (state) => {
+        state.admin = null;
+        state.accessToken = null;
+        state.isLoggingOut = false;
+        state.error = null;
+      })
+      .addCase(logoutAdminThunk.rejected, (state, action) => {
+        state.isLoggingOut = false;
+        state.error = action.payload;
       });
   },
 });
 
 export const {
+  selectAccessToken,
+  selectCurrentAdmin,
   selectIsAuthenticated,
   selectIsInitializing,
+  selectIsLoggingOut,
   selectIsLoading,
   selectError,
 } = authSlice.selectors;

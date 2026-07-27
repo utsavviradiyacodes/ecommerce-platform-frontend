@@ -9,6 +9,9 @@ import { store } from "./app/store.js";
 import { BrowserRouter } from "react-router";
 
 import { initializeAdminSessionThunk } from "./features/auth/authSlice.js";
+import { setupAxiosInterceptors } from "./api/setupAxiosInterceptors.js";
+
+setupAxiosInterceptors(store);
 
 store.dispatch(initializeAdminSessionThunk());
 
