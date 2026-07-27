@@ -1,29 +1,81 @@
+import {
+  BoxCubeIcon,
+  DollarLineIcon,
+  GridIcon,
+  GroupIcon,
+} from "../icons/iconComponents.js";
 import { ADMIN_PERMISSIONS } from "./adminPermissions.js";
 
 export const ADMIN_NAV_ITEMS = [
   {
     label: "Dashboard",
-    to: "/admin/dashboard",
-    permission: null,
+    path: "/admin/dashboard",
+    icon: GridIcon,
   },
+
   {
-    label: "Products",
-    to: "/admin/products",
-    permission: ADMIN_PERMISSIONS.PRODUCTS,
+    label: "Catalog",
+    icon: BoxCubeIcon,
+    subItems: [
+      {
+        label: "Categories",
+        path: "/admin/categories",
+        permission: ADMIN_PERMISSIONS.PRODUCTS,
+      },
+      {
+        label: "Subcategories",
+        path: "/admin/subcategories",
+        permission: ADMIN_PERMISSIONS.PRODUCTS,
+      },
+      {
+        label: "Products",
+        path: "/admin/products",
+        permission: ADMIN_PERMISSIONS.PRODUCTS,
+      },
+    ],
   },
+
   {
-    label: "Sellers",
-    to: "/admin/sellers",
-    permission: ADMIN_PERMISSIONS.SELLERS,
+    label: "Commerce",
+    icon: DollarLineIcon,
+    subItems: [
+      {
+        label: "Orders",
+        path: "/admin/orders",
+        permission: ADMIN_PERMISSIONS.ORDERS,
+      },
+      {
+        label: "Returns",
+        path: "/admin/returns",
+        permission: ADMIN_PERMISSIONS.ORDERS,
+      },
+      {
+        label: "Payments",
+        path: "/admin/payments",
+        superAdminOnly: true,
+      },
+    ],
   },
+
   {
-    label: "Orders",
-    to: "/admin/orders",
-    permission: ADMIN_PERMISSIONS.ORDERS,
-  },
-  {
-    label: "Customers",
-    to: "/admin/customers",
-    permission: ADMIN_PERMISSIONS.CUSTOMERS,
+    label: "User Management",
+    icon: GroupIcon,
+    subItems: [
+      {
+        label: "Customers",
+        path: "/admin/customers",
+        permission: ADMIN_PERMISSIONS.CUSTOMERS,
+      },
+      {
+        label: "Sellers",
+        path: "/admin/sellers",
+        permission: ADMIN_PERMISSIONS.SELLERS,
+      },
+      {
+        label: "Admins",
+        path: "/admin/admins",
+        superAdminOnly: true,
+      },
+    ],
   },
 ];

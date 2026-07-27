@@ -1,51 +1,33 @@
-import { useDispatch, useSelector } from "react-redux";
-import { NavLink, Outlet } from "react-router";
-import {
-  logoutAdminThunk,
-  selectCurrentAdmin,
-  selectIsLoggingOut,
-} from "../features/auth/authSlice.js";
-import { hasAdminPermission } from "../utils/hasAdminPermission.js";
-import { ADMIN_NAV_ITEMS } from "../constants/adminNavigation.js";
+import { Outlet } from "react-router";
+
+import { useSidebar } from "../hooks/useSidebar.js";
+import AppHeader from "./AppHeader.jsx";
+import AppSidebar from "./AppSidebar.jsx";
+import Backdrop from "./Backdrop.jsx";
 
 function AdminLayout() {
-  const dispatch = useDispatch();
+  const { isExpanded, isHovered } = useSidebar();
 
-  const currentAdmin = useSelector(selectCurrentAdmin);
-  const isLoggingOut = useSelector(selectIsLoggingOut);
-
-  function handleLogout() {
-    dispatch(logoutAdminThunk());
-  }
-
-  const visibleNavItems = ADMIN_NAV_ITEMS.filter((item) => {
-    return (
-      item.permission === null ||
-      hasAdminPermission(currentAdmin, item.permission)
-    );
-  });
+  const sidebarIsWide = isExpanded || isHovered;
 
   return (
-    <div>
-      <header>
-        <span>{currentAdmin?.name || currentAdmin?.email}</span>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 xl:flex">
+      <AppSidebar />
+      <Backdrop />
 
-        <nav>
-          {visibleNavItems.map((item) => (
-            <NavLink key={item.to} to={item.to}>
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
+      <div
+        className={`flex min-h-screen flex-1 flex-col transition-all duration-300 ease-in-out ${
+          sidebarIsWide ? "lg:ml-72.5" : "lg:ml-22.5"
+        }`}
+      >
+        <AppHeader />
 
-        <button type="button" onClick={handleLogout} disabled={isLoggingOut}>
-          {isLoggingOut ? "Logging out..." : "Logout"}
-        </button>
-      </header>
-
-      <main>
-        <Outlet />
-      </main>
+        <main className="flex-1">
+          <div className="mx-auto max-w-(--breakpoint-2xl) p-4 md:p-6">
+            <Outlet />
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

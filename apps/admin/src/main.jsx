@@ -11,16 +11,20 @@ import { BrowserRouter } from "react-router";
 import { initializeAdminSessionThunk } from "./features/auth/authSlice.js";
 import { setupAxiosInterceptors } from "./api/setupAxiosInterceptors.js";
 
+import { ThemeProvider } from "./context/ThemeProvider.jsx";
+
 setupAxiosInterceptors(store);
 
 store.dispatch(initializeAdminSessionThunk());
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
-    <Provider store={store}>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
-    </Provider>
+    <ThemeProvider>
+      <Provider store={store}>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </Provider>
+    </ThemeProvider>
   </StrictMode>
 );

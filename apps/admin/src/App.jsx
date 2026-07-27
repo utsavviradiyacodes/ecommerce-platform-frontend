@@ -11,13 +11,23 @@ import ProductsPage from "./pages/products/ProductsPage.jsx";
 import SellersPage from "./pages/sellers/SellersPage.jsx";
 import OrdersPage from "./pages/orders/OrdersPage.jsx";
 import CustomersPage from "./pages/customers/CustomersPage.jsx";
+import ProfilePage from "./pages/profile/ProfilePage.jsx";
+import SettingsPage from "./pages/settings/SettingsPage.jsx";
+import PaymentsPage from "./pages/payments/PaymentsPage.jsx";
+import ReturnsPage from "./pages/returns/ReturnsPage.jsx";
+import AdminsPage from "./pages/admins/AdminsPage.jsx";
+import CategoriesPage from "./pages/categories/CategoriesPage.jsx";
+import SubcategoriesPage from "./pages/subcategories/SubcategoriesPage.jsx";
 import UnauthorizedPage from "./pages/errors/UnauthorizedPage.jsx";
+
+import { ADMIN_PERMISSIONS } from "./constants/adminPermissions.js";
 
 import PermissionRoute from "./routes/PermissionRoute.jsx";
 import ProtectedRoute from "./routes/ProtectedRoute.jsx";
 import PublicOnlyRoute from "./routes/PublicOnlyRoute.jsx";
 
-import { ADMIN_PERMISSIONS } from "./constants/adminPermissions.js";
+import { SidebarProvider } from "./context/SidebarProvider.jsx";
+import SuperAdminRoute from "./routes/SuperAdminRoute.jsx";
 
 function App() {
   const isInitializing = useSelector(selectIsInitializing);
@@ -35,11 +45,20 @@ function App() {
 
       {/* All routes below require an authenticated admin */}
       <Route element={<ProtectedRoute />}>
-        <Route path="/admin" element={<AdminLayout />}>
+        <Route
+          path="/admin"
+          element={
+            <SidebarProvider>
+              <AdminLayout />
+            </SidebarProvider>
+          }
+        >
           <Route index element={<Navigate to="dashboard" replace />} />
 
           {/* Any authenticated admin can access these */}
           <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="profile" element={<ProfilePage />} />
+          <Route path="settings" element={<SettingsPage />} />
           <Route path="unauthorized" element={<UnauthorizedPage />} />
 
           {/* Only admins with manageProducts can access this */}
@@ -50,6 +69,8 @@ function App() {
               />
             }
           >
+            <Route path="categories" element={<CategoriesPage />} />
+            <Route path="subcategories" element={<SubcategoriesPage />} />
             <Route path="products" element={<ProductsPage />} />
           </Route>
 
@@ -69,6 +90,7 @@ function App() {
             }
           >
             <Route path="orders" element={<OrdersPage />} />
+            <Route path="returns" element={<ReturnsPage />} />
           </Route>
 
           {/* Only admins with manageCustomers can access this */}
@@ -80,6 +102,12 @@ function App() {
             }
           >
             <Route path="customers" element={<CustomersPage />} />
+          </Route>
+
+          {/* All routes below require an authenticated Super-admin */}
+          <Route element={<SuperAdminRoute />}>
+            <Route path="payments" element={<PaymentsPage />} />
+            <Route path="admins" element={<AdminsPage />} />
           </Route>
         </Route>
       </Route>
