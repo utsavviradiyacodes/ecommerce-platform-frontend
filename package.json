@@ -1,7 +1,17 @@
 {
   "name": "ecommerce-platform-frontend",
   "private": true,
+  "type": "module",
   "workspaces": [
     "apps/*"
-  ]
+  ],
+  "scripts": {
+    "dev": "npm run dev:admin",
+    "dev:admin": "npm run dev --workspace=@ecommerce-platform/admin",
+    "build": "npm run build --workspaces --if-present",
+    "build:admin": "npm run build --workspace=@ecommerce-platform/admin",
+    "lint": "npm run lint --workspaces --if-present",
+    "lint:admin": "npm run lint --workspace=@ecommerce-platform/admin",
+    "preview:admin": "npm run preview --workspace=@ecommerce-platform/admin"
+  }
 }
