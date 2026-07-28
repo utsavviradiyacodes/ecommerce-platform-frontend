@@ -4,7 +4,7 @@ import { Link, useLocation } from "react-router";
 import {
   ChevronDownIcon,
   HorizontalDotsIcon,
-} from "../../icons/iconComponents.js";
+} from "../../../../icons/index.js";
 
 function SidebarNavigation({
   navItems,

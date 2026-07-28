@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { Dropdown } from "../ui/dropdown/Dropdown.jsx";
+import { Dropdown } from "../../../ui/dropdown/Dropdown.jsx";
 
 function NotificationDropdown() {
   const [isOpen, setIsOpen] = useState(false);

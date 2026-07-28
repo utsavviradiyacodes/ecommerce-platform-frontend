@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 
-import { ThemeToggleButton } from "../components/common/ThemeToggleButton.jsx";
-import NotificationDropdown from "../components/header/NotificationDropdown.jsx";
-import UserDropdown from "../components/header/UserDropdown.jsx";
-import { useSidebar } from "../hooks/useSidebar.js";
-import { HorizontalDotsIcon } from "../icons/iconComponents.js";
+import { ThemeToggleButton } from "../../common/ThemeToggleButton.jsx";
+import NotificationDropdown from "./header/NotificationDropdown.jsx";
+import UserDropdown from "./header/UserDropdown.jsx";
+import { useSidebar } from "../../../hooks/useSidebar.js";
+import { HorizontalDotsIcon } from "../../../icons/index.js";
 
 function AppHeader() {
   const [isApplicationMenuOpen, setIsApplicationMenuOpen] = useState(false);

@@ -2,10 +2,10 @@ import { useMemo } from "react";
 import { useSelector } from "react-redux";
 import { Link } from "react-router";
 
-import { ADMIN_NAV_ITEMS } from "../constants/adminNavigation.js";
-import { useSidebar } from "../hooks/useSidebar.js";
-import { selectCurrentAdmin } from "../features/auth/authSlice.js";
-import { getVisibleAdminNavigationItems } from "../utils/getVisibleAdminNavigationItems.js";
+import { ADMIN_NAV_ITEMS } from "../../../constants/adminNavigation.js";
+import { useSidebar } from "../../../hooks/useSidebar.js";
+import { selectCurrentAdmin } from "../../../features/auth/authSlice.js";
+import { getVisibleAdminNavigationItems } from "../../../utils/getVisibleAdminNavigationItems.js";
 import SidebarNavigation from "./sidebar/SidebarNavigation.jsx";
 
 function AppSidebar() {

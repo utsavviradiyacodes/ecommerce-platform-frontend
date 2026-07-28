@@ -1,9 +1,9 @@
 import { Outlet } from "react-router";
 
 import { useSidebar } from "../hooks/useSidebar.js";
-import AppHeader from "./AppHeader.jsx";
-import AppSidebar from "./AppSidebar.jsx";
-import Backdrop from "./Backdrop.jsx";
+import AppHeader from "../components/layout/admin/AppHeader.jsx";
+import AppSidebar from "../components/layout/admin/AppSidebar.jsx";
+import Backdrop from "../components/layout/admin/Backdrop.jsx";
 
 function AdminLayout() {
   const { isExpanded, isHovered } = useSidebar();

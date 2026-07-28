@@ -1,4 +1,4 @@
-import { useSidebar } from "../hooks/useSidebar.js";
+import { useSidebar } from "../../../hooks/useSidebar.js";
 
 function Backdrop() {
   const { isMobileOpen, closeMobileSidebar } = useSidebar();

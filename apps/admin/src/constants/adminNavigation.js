@@ -3,7 +3,7 @@ import {
   DollarLineIcon,
   GridIcon,
   GroupIcon,
-} from "../icons/iconComponents.js";
+} from "../icons/index.js";
 import { ADMIN_PERMISSIONS } from "./adminPermissions.js";
 
 export const ADMIN_NAV_ITEMS = [

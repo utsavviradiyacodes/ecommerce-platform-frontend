@@ -5,9 +5,9 @@ import {
   logoutAdminThunk,
   selectCurrentAdmin,
   selectIsLoggingOut,
-} from "../../features/auth/authSlice.js";
-import { Dropdown } from "../ui/dropdown/Dropdown.jsx";
-import { DropdownItem } from "../ui/dropdown/DropdownItem.jsx";
+} from "../../../../features/auth/authSlice.js";
+import { Dropdown } from "../../../ui/dropdown/Dropdown.jsx";
+import { DropdownItem } from "../../../ui/dropdown/DropdownItem.jsx";
 import {
   AccountSettingsIcon,
   EditProfileIcon,
