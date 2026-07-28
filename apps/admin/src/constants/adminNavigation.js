@@ -52,7 +52,6 @@ export const ADMIN_NAV_ITEMS = [
       {
         label: "Payments",
         path: "/admin/payments",
-        superAdminOnly: true,
       },
     ],
   },

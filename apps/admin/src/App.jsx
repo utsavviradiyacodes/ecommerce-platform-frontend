@@ -25,9 +25,9 @@ import { ADMIN_PERMISSIONS } from "./constants/adminPermissions.js";
 import PermissionRoute from "./routes/PermissionRoute.jsx";
 import ProtectedRoute from "./routes/ProtectedRoute.jsx";
 import PublicOnlyRoute from "./routes/PublicOnlyRoute.jsx";
+import SuperAdminRoute from "./routes/SuperAdminRoute.jsx";
 
 import { SidebarProvider } from "./context/SidebarProvider.jsx";
-import SuperAdminRoute from "./routes/SuperAdminRoute.jsx";
 
 function App() {
   const isInitializing = useSelector(selectIsInitializing);
@@ -59,6 +59,7 @@ function App() {
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="payments" element={<PaymentsPage />} />
           <Route path="unauthorized" element={<UnauthorizedPage />} />
 
           {/* Only admins with manageProducts can access this */}
@@ -104,9 +105,8 @@ function App() {
             <Route path="customers" element={<CustomersPage />} />
           </Route>
 
-          {/* All routes below require an authenticated Super-admin */}
+          {/* Only authenticated Super-admins can access Admins */}
           <Route element={<SuperAdminRoute />}>
-            <Route path="payments" element={<PaymentsPage />} />
             <Route path="admins" element={<AdminsPage />} />
           </Route>
         </Route>
