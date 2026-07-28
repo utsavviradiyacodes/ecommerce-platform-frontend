@@ -6,25 +6,29 @@ import { selectIsInitializing } from "./features/auth/authSlice.js";
 import AdminLayout from "./layouts/AdminLayout.jsx";
 
 import DashboardPage from "./pages/dashboard/DashboardPage.jsx";
-import LoginPage from "./pages/auth/LoginPage.jsx";
-import ProductsPage from "./pages/products/ProductsPage.jsx";
-import SellersPage from "./pages/sellers/SellersPage.jsx";
-import OrdersPage from "./pages/orders/OrdersPage.jsx";
-import CustomersPage from "./pages/customers/CustomersPage.jsx";
-import ProfilePage from "./pages/profile/ProfilePage.jsx";
-import SettingsPage from "./pages/settings/SettingsPage.jsx";
-import PaymentsPage from "./pages/payments/PaymentsPage.jsx";
-import ReturnsPage from "./pages/returns/ReturnsPage.jsx";
-import AdminsPage from "./pages/admins/AdminsPage.jsx";
 import CategoriesPage from "./pages/categories/CategoriesPage.jsx";
 import SubcategoriesPage from "./pages/subcategories/SubcategoriesPage.jsx";
+import ProductsPage from "./pages/products/ProductsPage.jsx";
+import OrdersPage from "./pages/orders/OrdersPage.jsx";
+import ReturnsPage from "./pages/returns/ReturnsPage.jsx";
+import PaymentsPage from "./pages/payments/PaymentsPage.jsx";
+import CustomersPage from "./pages/customers/CustomersPage.jsx";
+import SellersPage from "./pages/sellers/SellersPage.jsx";
+import AdminsPage from "./pages/admins/AdminsPage.jsx";
+import ProfilePage from "./pages/profile/ProfilePage.jsx";
+import SettingsPage from "./pages/settings/SettingsPage.jsx";
+import LoginPage from "./pages/auth/LoginPage.jsx";
+import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage.jsx";
+import ResetPasswordPage from "./pages/auth/ResetPasswordPage.jsx";
+import EnterOtpPage from "./pages/auth/EnterOtpPage.jsx";
+import NotFoundPage from "./pages/errors/NotFoundPage.jsx";
 import UnauthorizedPage from "./pages/errors/UnauthorizedPage.jsx";
 
 import { ADMIN_PERMISSIONS } from "./constants/adminPermissions.js";
 
-import PermissionRoute from "./routes/PermissionRoute.jsx";
-import ProtectedRoute from "./routes/ProtectedRoute.jsx";
 import PublicOnlyRoute from "./routes/PublicOnlyRoute.jsx";
+import ProtectedRoute from "./routes/ProtectedRoute.jsx";
+import PermissionRoute from "./routes/PermissionRoute.jsx";
 import SuperAdminRoute from "./routes/SuperAdminRoute.jsx";
 
 import { SidebarProvider } from "./context/SidebarProvider.jsx";
@@ -41,6 +45,9 @@ function App() {
       {/* Public-only routes */}
       <Route element={<PublicOnlyRoute />}>
         <Route path="/admin/login" element={<LoginPage />} />
+        <Route path="/admin/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/admin/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/admin/enter-otp" element={<EnterOtpPage />} />
       </Route>
 
       {/* All routes below require an authenticated admin */}
@@ -109,9 +116,13 @@ function App() {
           <Route element={<SuperAdminRoute />}>
             <Route path="admins" element={<AdminsPage />} />
           </Route>
+
+          {/* Unknown admin routes */}
+          <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Route>
 
+      {/* Redirect the root URL to the admin area */}
       <Route path="/" element={<Navigate to="/admin" replace />} />
     </Routes>
   );
