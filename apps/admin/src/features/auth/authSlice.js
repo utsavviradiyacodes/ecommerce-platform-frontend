@@ -1,11 +1,11 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import {
-  loginAdmin,
+  signInAdmin,
   requestAdminPasswordReset,
   refreshAdminAccessToken,
   getCurrentAdmin,
-  logoutAdmin,
-} from "./authApi";
+  signOutAdmin,
+} from "./authApi.js";
 
 import {
   REQUEST_STATUS,
@@ -13,6 +13,7 @@ import {
   setRequestPending,
   setRequestSucceeded,
   setRequestFailed,
+  resetRequestState,
   getRejectedActionErrorMessage,
 } from "../../utils/redux/requestState.js";
 
@@ -29,8 +30,8 @@ const initialState = {
 
   requests: {
     initializeSession: createRequestState(REQUEST_STATUS.PENDING),
-    login: createRequestState(),
-    logout: createRequestState(),
+    signIn: createRequestState(),
+    signOut: createRequestState(),
     requestPasswordReset: createRequestState(),
   },
 };
@@ -50,16 +51,16 @@ export const initializeAdminSessionThunk = createAsyncThunk(
   }
 );
 
-export const loginAdminThunk = createAsyncThunk(
-  "auth/loginAdmin",
+export const signInAdminThunk = createAsyncThunk(
+  "auth/signInAdmin",
   async (credentials, { rejectWithValue }) => {
     try {
-      const response = await loginAdmin(credentials);
+      const response = await signInAdmin(credentials);
 
       return response;
     } catch (error) {
       return rejectWithValue(
-        getApiErrorMessage(error, "Unable to log in. Please try again.")
+        getApiErrorMessage(error, "Unable to sign in. Please try again.")
       );
     }
   }
@@ -83,16 +84,16 @@ export const requestAdminPasswordResetThunk = createAsyncThunk(
   }
 );
 
-export const logoutAdminThunk = createAsyncThunk(
-  "auth/logoutAdmin",
+export const signOutAdminThunk = createAsyncThunk(
+  "auth/signOutAdmin",
   async (_, { rejectWithValue }) => {
     try {
-      const response = await logoutAdmin();
+      const response = await signOutAdmin();
 
       return response;
     } catch (error) {
       return rejectWithValue(
-        getApiErrorMessage(error, "Unable to log out. Please try again.")
+        getApiErrorMessage(error, "Unable to sign out. Please try again.")
       );
     }
   }
@@ -102,28 +103,64 @@ const authSlice = createSlice({
   name: "auth",
   initialState,
 
-  reducers: {},
+  reducers: {
+    setAdminPasswordRecoveryEmail(state, action) {
+      state.passwordRecovery.email = action.payload;
+      state.passwordRecovery.userId = null;
+    },
+
+    clearAdminSignInRequestFeedback(state) {
+      resetRequestState(state.requests.signIn);
+    },
+
+    clearAdminPasswordResetOtpRequestFeedback(state) {
+      resetRequestState(state.requests.requestPasswordReset);
+    },
+  },
 
   selectors: {
+    // -------------------- Current authentication data --------------------
+
     selectCurrentAdmin: (sliceState) => sliceState.admin,
+
+    selectAdminAccessToken: (sliceState) => sliceState.accessToken,
+
     selectIsAdminAuthenticated: (sliceState) =>
       Boolean(sliceState.admin && sliceState.accessToken),
-    selectAdminAccessToken: (sliceState) => sliceState.accessToken,
+
+    // -------------------- Session initialization request --------------------
+
     selectIsAdminSessionInitializationPending: (sliceState) =>
       sliceState.requests.initializeSession.status === REQUEST_STATUS.PENDING,
-    selectIsAdminLogoutPending: (sliceState) =>
-      sliceState.requests.logout.status === REQUEST_STATUS.PENDING,
-    selectIsAdminLoginPending: (sliceState) =>
-      sliceState.requests.login.status === REQUEST_STATUS.PENDING,
-    selectAdminLoginError: (sliceState) => sliceState.requests.login.error,
+
+    // -------------------- Sign In request --------------------
+
+    selectIsAdminSignInPending: (sliceState) =>
+      sliceState.requests.signIn.status === REQUEST_STATUS.PENDING,
+
+    selectAdminSignInError: (sliceState) => sliceState.requests.signIn.error,
+
+    // -------------------- Sign Out request --------------------
+
+    selectIsAdminSignOutPending: (sliceState) =>
+      sliceState.requests.signOut.status === REQUEST_STATUS.PENDING,
+
+    // -------------------- Password-recovery workflow data --------------------
+
     selectAdminPasswordRecovery: (sliceState) => sliceState.passwordRecovery,
+
+    // -------------------- Password-reset OTP request --------------------
+
     selectAdminPasswordResetOtpRequest: (sliceState) =>
       sliceState.requests.requestPasswordReset,
+
     selectIsAdminPasswordResetOtpRequestPending: (sliceState) =>
       sliceState.requests.requestPasswordReset.status ===
       REQUEST_STATUS.PENDING,
+
     selectAdminPasswordResetOtpRequestError: (sliceState) =>
       sliceState.requests.requestPasswordReset.error,
+
     selectAdminPasswordResetOtpRequestSuccessMessage: (sliceState) =>
       sliceState.requests.requestPasswordReset.successMessage,
   },
@@ -155,27 +192,31 @@ const authSlice = createSlice({
         );
       })
 
-      // ----------------------------loginAdminThunk------------------------------
-      .addCase(loginAdminThunk.pending, (state) => {
-        setRequestPending(state.requests.login);
+      // ----------------------------signInAdminThunk------------------------------
+
+      .addCase(signInAdminThunk.pending, (state) => {
+        setRequestPending(state.requests.signIn);
       })
-      .addCase(loginAdminThunk.fulfilled, (state, action) => {
+      .addCase(signInAdminThunk.fulfilled, (state, action) => {
         const { token, ...admin } = action.payload.data;
 
         state.accessToken = token;
         state.admin = admin;
 
+        state.passwordRecovery.email = "";
+        state.passwordRecovery.userId = null;
+
         setRequestSucceeded(
-          state.requests.login,
+          state.requests.signIn,
           action.payload?.message || null
         );
       })
-      .addCase(loginAdminThunk.rejected, (state, action) => {
+      .addCase(signInAdminThunk.rejected, (state, action) => {
         setRequestFailed(
-          state.requests.login,
+          state.requests.signIn,
           getRejectedActionErrorMessage(
             action,
-            "Unable to log in. Please try again."
+            "Unable to sign in. Please try again."
           )
         );
       })
@@ -209,26 +250,26 @@ const authSlice = createSlice({
         );
       })
 
-      // ----------------------------logoutAdminThunk----------------------
+      // ----------------------------signOutAdminThunk----------------------
 
-      .addCase(logoutAdminThunk.pending, (state) => {
-        setRequestPending(state.requests.logout);
+      .addCase(signOutAdminThunk.pending, (state) => {
+        setRequestPending(state.requests.signOut);
       })
-      .addCase(logoutAdminThunk.fulfilled, (state, action) => {
+      .addCase(signOutAdminThunk.fulfilled, (state, action) => {
         state.admin = null;
         state.accessToken = null;
 
         setRequestSucceeded(
-          state.requests.logout,
+          state.requests.signOut,
           action.payload?.message || null
         );
       })
-      .addCase(logoutAdminThunk.rejected, (state, action) => {
+      .addCase(signOutAdminThunk.rejected, (state, action) => {
         setRequestFailed(
-          state.requests.logout,
+          state.requests.signOut,
           getRejectedActionErrorMessage(
             action,
-            "Unable to log out. Please try again."
+            "Unable to sign out. Please try again."
           )
         );
       });
@@ -236,18 +277,35 @@ const authSlice = createSlice({
 });
 
 export const {
+  // Current authentication data
   selectCurrentAdmin,
-  selectIsAdminAuthenticated,
   selectAdminAccessToken,
+  selectIsAdminAuthenticated,
+
+  // Session initialization request
   selectIsAdminSessionInitializationPending,
-  selectIsAdminLogoutPending,
-  selectIsAdminLoginPending,
-  selectAdminLoginError,
+
+  // Sign In request
+  selectIsAdminSignInPending,
+  selectAdminSignInError,
+
+  // Sign Out request
+  selectIsAdminSignOutPending,
+
+  // Password-recovery workflow data
   selectAdminPasswordRecovery,
+
+  // Password-reset OTP request
   selectAdminPasswordResetOtpRequest,
   selectIsAdminPasswordResetOtpRequestPending,
   selectAdminPasswordResetOtpRequestError,
   selectAdminPasswordResetOtpRequestSuccessMessage,
 } = authSlice.selectors;
+
+export const {
+  setAdminPasswordRecoveryEmail,
+  clearAdminSignInRequestFeedback,
+  clearAdminPasswordResetOtpRequestFeedback,
+} = authSlice.actions;
 
 export default authSlice.reducer;

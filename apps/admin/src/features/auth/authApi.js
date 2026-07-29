@@ -1,6 +1,6 @@
 import axiosInstance from "../../api/axiosInstance.js";
 
-export async function loginAdmin(credentials) {
+export async function signInAdmin(credentials) {
   const { email, password } = credentials;
 
   const res = await axiosInstance.post("/auth/login", {
@@ -41,7 +41,7 @@ export async function refreshAdminAccessToken() {
   return res.data;
 }
 
-export async function logoutAdmin() {
+export async function signOutAdmin() {
   const res = await axiosInstance.post("/auth/logout", null, {
     headers: {
       "x-role": "admin",

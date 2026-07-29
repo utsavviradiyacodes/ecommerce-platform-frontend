@@ -18,10 +18,10 @@ import SellersPage from "./pages/sellers/SellersPage.jsx";
 import AdminsPage from "./pages/admins/AdminsPage.jsx";
 import ProfilePage from "./pages/profile/ProfilePage.jsx";
 import SettingsPage from "./pages/settings/SettingsPage.jsx";
-import LoginPage from "./pages/auth/LoginPage.jsx";
+import SignInPage from "./pages/auth/SignInPage.jsx";
 import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage.jsx";
-import ResetPasswordPage from "./pages/auth/ResetPasswordPage.jsx";
-import EnterOtpPage from "./pages/auth/EnterOtpPage.jsx";
+import CreateNewPasswordPage from "./pages/auth/CreateNewPasswordPage.jsx";
+import VerifyResetCodePage from "./pages/auth/VerifyResetCodePage.jsx";
 import NotFoundPage from "./pages/errors/NotFoundPage.jsx";
 import UnauthorizedPage from "./pages/errors/UnauthorizedPage.jsx";
 
@@ -48,16 +48,22 @@ function App() {
       {/* Public-only authentication routes */}
       <Route element={<PublicOnlyRoute />}>
         <Route element={<AuthLayout />}>
-          <Route path="/admin/login" element={<LoginPage />} />
+          <Route path="/admin/sign-in" element={<SignInPage />} />
 
           <Route
             path="/admin/forgot-password"
             element={<ForgotPasswordPage />}
           />
 
-          <Route path="/admin/enter-otp" element={<EnterOtpPage />} />
+          <Route
+            path="/admin/verify-reset-code"
+            element={<VerifyResetCodePage />}
+          />
 
-          <Route path="/admin/reset-password" element={<ResetPasswordPage />} />
+          <Route
+            path="/admin/create-new-password"
+            element={<CreateNewPasswordPage />}
+          />
         </Route>
       </Route>
 
