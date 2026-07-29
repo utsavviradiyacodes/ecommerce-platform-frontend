@@ -1,9 +1,10 @@
 import { useSelector } from "react-redux";
 import { Navigate, Route, Routes } from "react-router";
 
-import { selectIsInitializing } from "./features/auth/authSlice.js";
+import { selectIsAdminSessionInitializationPending } from "./features/auth/authSlice.js";
 
 import AdminLayout from "./layouts/AdminLayout.jsx";
+import AuthLayout from "./layouts/AuthLayout.jsx";
 
 import DashboardPage from "./pages/dashboard/DashboardPage.jsx";
 import CategoriesPage from "./pages/categories/CategoriesPage.jsx";
@@ -34,20 +35,30 @@ import SuperAdminRoute from "./routes/SuperAdminRoute.jsx";
 import { SidebarProvider } from "./context/SidebarProvider.jsx";
 
 function App() {
-  const isInitializing = useSelector(selectIsInitializing);
+  const isAdminSessionInitializationPending = useSelector(
+    selectIsAdminSessionInitializationPending
+  );
 
-  if (isInitializing) {
+  if (isAdminSessionInitializationPending) {
     return <p>Checking admin session...</p>;
   }
 
   return (
     <Routes>
-      {/* Public-only routes */}
+      {/* Public-only authentication routes */}
       <Route element={<PublicOnlyRoute />}>
-        <Route path="/admin/login" element={<LoginPage />} />
-        <Route path="/admin/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/admin/reset-password" element={<ResetPasswordPage />} />
-        <Route path="/admin/enter-otp" element={<EnterOtpPage />} />
+        <Route element={<AuthLayout />}>
+          <Route path="/admin/login" element={<LoginPage />} />
+
+          <Route
+            path="/admin/forgot-password"
+            element={<ForgotPasswordPage />}
+          />
+
+          <Route path="/admin/enter-otp" element={<EnterOtpPage />} />
+
+          <Route path="/admin/reset-password" element={<ResetPasswordPage />} />
+        </Route>
       </Route>
 
       {/* All routes below require an authenticated admin */}

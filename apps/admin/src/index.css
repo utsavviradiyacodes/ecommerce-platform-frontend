@@ -1,14 +1,50 @@
+/*
+  Load the Outfit font and place the imported font styles inside
+  the CSS base layer so Tailwind utilities can override them normally.
+*/
 @import url("https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap")
 layer(base);
 
+/* Load Tailwind CSS v4. */
 @import "tailwindcss";
 
-@custom-variant dark (&:is(.dark *));
+/*
+  Enable manual class-based dark mode.
 
+  dark:* utilities become active when the current element or one
+  of its ancestors is inside an element with the `.dark` class.
+
+  :where() keeps the selector specificity low, making overrides predictable.
+*/
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+  Define project design tokens for Tailwind v4.
+
+  Variables inside @theme generate matching Tailwind utilities.
+
+  Examples:
+  --font-outfit       → font-outfit
+  --color-brand-500   → bg-brand-500, text-brand-500, border-brand-500
+  --shadow-theme-md   → shadow-theme-md
+  --z-index-999       → z-999
+*/
 @theme {
+  /* -------------------------------------------------- */
+  /* Typography                                         */
+  /* -------------------------------------------------- */
+
+  /*
+    Remove Tailwind's default font families and define
+    Outfit as the project's primary font.
+  */
   --font-*: initial;
   --font-outfit: Outfit, sans-serif;
 
+  /*
+    Replace Tailwind's default breakpoint set with the
+    breakpoints used by the TailAdmin-based design.
+  */
   --breakpoint-*: initial;
   --breakpoint-2xsm: 375px;
   --breakpoint-xsm: 425px;
@@ -19,6 +55,7 @@ layer(base);
   --breakpoint-xl: 1280px;
   --breakpoint-2xl: 1536px;
 
+  /* Custom title and theme text sizes. */
   --text-title-2xl: 72px;
   --text-title-2xl--line-height: 90px;
   --text-title-xl: 60px;
@@ -36,10 +73,18 @@ layer(base);
   --text-theme-xs: 12px;
   --text-theme-xs--line-height: 18px;
 
+  /* -------------------------------------------------- */
+  /* Core colors                                        */
+  /* -------------------------------------------------- */
+
   --color-current: currentColor;
   --color-transparent: transparent;
   --color-white: #ffffff;
   --color-black: #101828;
+
+  /* -------------------------------------------------- */
+  /* Brand colors                                       */
+  /* -------------------------------------------------- */
 
   --color-brand-25: #f2f7ff;
   --color-brand-50: #ecf3ff;
@@ -54,6 +99,10 @@ layer(base);
   --color-brand-900: #262e89;
   --color-brand-950: #161950;
 
+  /* -------------------------------------------------- */
+  /* Light-blue colors                                  */
+  /* -------------------------------------------------- */
+
   --color-blue-light-25: #f5fbff;
   --color-blue-light-50: #f0f9ff;
   --color-blue-light-100: #e0f2fe;
@@ -66,6 +115,10 @@ layer(base);
   --color-blue-light-800: #065986;
   --color-blue-light-900: #0b4a6f;
   --color-blue-light-950: #062c41;
+
+  /* -------------------------------------------------- */
+  /* Neutral gray colors                                */
+  /* -------------------------------------------------- */
 
   --color-gray-25: #fcfcfd;
   --color-gray-50: #f9fafb;
@@ -81,6 +134,10 @@ layer(base);
   --color-gray-950: #0c111d;
   --color-gray-dark: #1a2231;
 
+  /* -------------------------------------------------- */
+  /* Orange colors                                      */
+  /* -------------------------------------------------- */
+
   --color-orange-25: #fffaf5;
   --color-orange-50: #fff6ed;
   --color-orange-100: #ffead5;
@@ -93,6 +150,10 @@ layer(base);
   --color-orange-800: #9c2a10;
   --color-orange-900: #7e2410;
   --color-orange-950: #511c10;
+
+  /* -------------------------------------------------- */
+  /* Success colors                                     */
+  /* -------------------------------------------------- */
 
   --color-success-25: #f6fef9;
   --color-success-50: #ecfdf3;
@@ -107,6 +168,10 @@ layer(base);
   --color-success-900: #054f31;
   --color-success-950: #053321;
 
+  /* -------------------------------------------------- */
+  /* Error colors                                       */
+  /* -------------------------------------------------- */
+
   --color-error-25: #fffbfa;
   --color-error-50: #fef3f2;
   --color-error-100: #fee4e2;
@@ -119,6 +184,10 @@ layer(base);
   --color-error-800: #912018;
   --color-error-900: #7a271a;
   --color-error-950: #55160c;
+
+  /* -------------------------------------------------- */
+  /* Warning colors                                     */
+  /* -------------------------------------------------- */
 
   --color-warning-25: #fffcf5;
   --color-warning-50: #fffaeb;
@@ -133,33 +202,50 @@ layer(base);
   --color-warning-900: #7a2e0e;
   --color-warning-950: #4e1d09;
 
+  /* Additional theme accent colors. */
   --color-theme-pink-500: #ee46bc;
-
   --color-theme-purple-500: #7a5af8;
+
+  /* -------------------------------------------------- */
+  /* Box shadows                                        */
+  /* -------------------------------------------------- */
 
   --shadow-theme-md:
     0px 4px 8px -2px rgba(16, 24, 40, 0.1),
     0px 2px 4px -2px rgba(16, 24, 40, 0.06);
+
   --shadow-theme-lg:
     0px 12px 16px -4px rgba(16, 24, 40, 0.08),
     0px 4px 6px -2px rgba(16, 24, 40, 0.03);
+
   --shadow-theme-sm:
     0px 1px 3px 0px rgba(16, 24, 40, 0.1),
     0px 1px 2px 0px rgba(16, 24, 40, 0.06);
+
   --shadow-theme-xs: 0px 1px 2px 0px rgba(16, 24, 40, 0.05);
+
   --shadow-theme-xl:
     0px 20px 24px -4px rgba(16, 24, 40, 0.08),
     0px 8px 8px -4px rgba(16, 24, 40, 0.03);
+
   --shadow-datepicker: -5px 0 0 #262d3c, 5px 0 0 #262d3c;
+
   --shadow-focus-ring: 0px 0px 0px 4px rgba(70, 95, 255, 0.12);
+
   --shadow-slider-navigation:
     0px 1px 2px 0px rgba(16, 24, 40, 0.1), 0px 1px 3px 0px rgba(16, 24, 40, 0.1);
+
   --shadow-tooltip:
     0px 4px 6px -2px rgba(16, 24, 40, 0.05),
     -8px 0px 20px 8px rgba(16, 24, 40, 0.05);
 
+  /* Drop-shadow token used for strongly elevated elements. */
   --drop-shadow-4xl:
     0 35px 35px rgba(0, 0, 0, 0.25), 0 45px 65px rgba(0, 0, 0, 0.15);
+
+  /* -------------------------------------------------- */
+  /* Z-index scale                                      */
+  /* -------------------------------------------------- */
 
   --z-index-1: 1;
   --z-index-9: 9;
@@ -170,7 +256,17 @@ layer(base);
   --z-index-999999: 999999;
 }
 
+/*
+  Global base styles.
+
+  These rules establish project-wide defaults before component
+  and utility classes are applied.
+*/
 @layer base {
+  /*
+    Give elements Tailwind's gray border color by default while
+    preserving currentColor as a fallback.
+  */
   *,
   ::after,
   ::before,
@@ -178,81 +274,122 @@ layer(base);
   ::file-selector-button {
     border-color: var(--color-gray-200, currentColor);
   }
+
+  /*
+    Show the pointer cursor only for interactive buttons that
+    are not disabled.
+  */
   button:not(:disabled),
   [role="button"]:not(:disabled) {
     cursor: pointer;
   }
+
+  /* Apply the project font, page background, and base positioning. */
   body {
-    @apply relative font-normal font-outfit z-1 bg-gray-50;
+    @apply relative z-1 bg-gray-50 font-outfit font-normal;
   }
 }
 
+/* ================================================== */
+/* Sidebar menu utilities                             */
+/* ================================================== */
+
+/* Shared layout for primary sidebar menu items. */
 @utility menu-item {
-  @apply relative flex w-full items-center gap-3 rounded-lg px-3 py-2 font-medium text-theme-sm;
+  @apply relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-theme-sm font-medium;
 }
 
+/* Appearance of the currently active sidebar item. */
 @utility menu-item-active {
   @apply bg-brand-50 text-brand-500 dark:bg-brand-500/12 dark:text-brand-400;
 }
 
+/* Default and hover appearance of an inactive sidebar item. */
 @utility menu-item-inactive {
   @apply text-gray-700 hover:bg-gray-100 group-hover:text-gray-700 dark:text-gray-300 dark:hover:bg-white/5 dark:hover:text-gray-300;
 }
 
+/* Default sidebar icon color. */
 @utility menu-item-icon {
   @apply text-gray-500 group-hover:text-gray-700 dark:text-gray-400;
 }
 
+/* Icon color for the currently active sidebar item. */
 @utility menu-item-icon-active {
   @apply text-brand-500 dark:text-brand-400;
 }
 
+/* Force SVG icons inside menu items to use the required size. */
 @utility menu-item-icon-size {
   & svg {
     @apply size-6!;
   }
 }
 
+/* Icon colors for inactive and hovered sidebar items. */
 @utility menu-item-icon-inactive {
   @apply text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-300;
 }
 
+/* Base positioning required by expandable-menu arrow icons. */
 @utility menu-item-arrow {
   @apply relative;
 }
 
+/* Rotate and recolor the arrow when its submenu is open. */
 @utility menu-item-arrow-active {
   @apply rotate-180 text-brand-500 dark:text-brand-400;
 }
 
+/* Default and hover appearance of a closed submenu arrow. */
 @utility menu-item-arrow-inactive {
   @apply text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-300;
 }
 
+/* ================================================== */
+/* Sidebar submenu utilities                          */
+/* ================================================== */
+
+/* Shared layout for nested sidebar menu items. */
 @utility menu-dropdown-item {
   @apply relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-theme-sm font-medium;
 }
 
+/* Appearance of an active nested menu item. */
 @utility menu-dropdown-item-active {
   @apply bg-brand-50 text-brand-500 dark:bg-brand-500/12 dark:text-brand-400;
 }
 
+/* Default and hover appearance of an inactive nested menu item. */
 @utility menu-dropdown-item-inactive {
   @apply text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5;
 }
 
+/* Shared shape and typography for menu badges. */
 @utility menu-dropdown-badge {
   @apply block rounded-full px-2.5 py-0.5 text-xs font-medium uppercase text-brand-500 dark:text-brand-400;
 }
 
+/* Badge background used by an active nested menu item. */
 @utility menu-dropdown-badge-active {
   @apply bg-brand-100 dark:bg-brand-500/20;
 }
 
+/* Badge appearance used by inactive and hovered menu items. */
 @utility menu-dropdown-badge-inactive {
   @apply bg-brand-50 group-hover:bg-brand-100 dark:bg-brand-500/15 dark:group-hover:bg-brand-500/20;
 }
 
+/* ================================================== */
+/* Scrollbar utilities                                */
+/* ================================================== */
+
+/*
+  Completely hide a scrollbar while keeping the element scrollable.
+
+  The three declarations cover WebKit browsers, legacy Microsoft
+  browsers, and browsers supporting the standard scrollbar-width property.
+*/
 @utility no-scrollbar {
   &::-webkit-scrollbar {
     display: none;
@@ -262,20 +399,91 @@ layer(base);
   scrollbar-width: none;
 }
 
+/*
+  Apply a compact themed scrollbar.
+
+  Firefox uses scrollbar-width and scrollbar-color.
+  Chromium, Edge, and Safari use the ::-webkit-scrollbar selectors.
+
+  A CSS variable keeps the thumb color synchronized across both systems.
+*/
 @utility custom-scrollbar {
+  --scrollbar-thumb-color: var(--color-gray-200);
+
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb-color) transparent;
+
+  /* Replace the light thumb color when dark mode is active. */
+  @variant dark {
+    --scrollbar-thumb-color: var(--color-gray-700);
+  }
+
+  /* Set the scrollbar's width and height in WebKit-based browsers. */
   &::-webkit-scrollbar {
     @apply size-1.5;
   }
 
+  /* Give the scrollbar track rounded edges. */
   &::-webkit-scrollbar-track {
     @apply rounded-full;
   }
 
+  /* Style the draggable scrollbar thumb. */
   &::-webkit-scrollbar-thumb {
-    @apply rounded-full bg-gray-200 dark:bg-gray-700;
+    @apply rounded-full;
+    background-color: var(--scrollbar-thumb-color);
   }
 }
 
-.dark .custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: #344054;
+/* ================================================== */
+/* Reusable component-level browser corrections       */
+/* ================================================== */
+
+@layer components {
+  /*
+    Define the text color used while the browser autofills a
+    reusable Sellora input.
+
+    Browsers may otherwise inject their own text and background colors,
+    which can clash with the application's light and dark themes.
+  */
+  .sellora-input {
+    --autofill-text-color: var(--color-gray-800);
+
+    @variant dark {
+      --autofill-text-color: var(--color-white);
+    }
+  }
+
+  /*
+    Restore the intended input appearance while autofill is active.
+
+    :autofill is the standard selector.
+    :-webkit-autofill supports Chromium and WebKit browser behavior.
+
+    hover, focus, and active are included so browser styling does not
+    return when the user interacts with the autofilled input.
+  */
+  .sellora-input:is(
+    :autofill,
+    :autofill:hover,
+    :autofill:focus,
+    :autofill:active,
+    :-webkit-autofill,
+    :-webkit-autofill:hover,
+    :-webkit-autofill:focus,
+    :-webkit-autofill:active
+  ) {
+    /*
+      Limit the browser-injected autofill background to the text area,
+      preventing it from repainting the complete input box.
+    */
+    background-clip: text;
+    -webkit-background-clip: text;
+
+    /* Restore the application-controlled text and caret colors. */
+    color: var(--autofill-text-color);
+    -webkit-text-fill-color: var(--autofill-text-color);
+    caret-color: var(--autofill-text-color);
+  }
 }

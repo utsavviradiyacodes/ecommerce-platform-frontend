@@ -1,4 +1,4 @@
-import { selectAccessToken } from "../features/auth/authSlice";
+import { selectAdminAccessToken } from "../features/auth/authSlice";
 import axiosInstance from "./axiosInstance.js";
 
 export function setupAxiosInterceptors(store) {
@@ -6,10 +6,10 @@ export function setupAxiosInterceptors(store) {
     (config) => {
       const rootState = store.getState();
 
-      const accessToken = selectAccessToken(rootState);
+      const adminAccessToken = selectAdminAccessToken(rootState);
 
-      if (accessToken) {
-        config.headers.Authorization = `Bearer ${accessToken}`;
+      if (adminAccessToken) {
+        config.headers.Authorization = `Bearer ${adminAccessToken}`;
       }
 
       return config;

@@ -1,11 +1,11 @@
 import { Navigate, Outlet } from "react-router";
-import { selectIsAuthenticated } from "../features/auth/authSlice";
+import { selectIsAdminAuthenticated } from "../features/auth/authSlice";
 import { useSelector } from "react-redux";
 
 function ProtectedRoute() {
-  const IsAuthenticated = useSelector(selectIsAuthenticated);
+  const isAdminAuthenticated = useSelector(selectIsAdminAuthenticated);
 
-  return IsAuthenticated ? <Outlet /> : <Navigate to="/admin/login" replace />;
+  return isAdminAuthenticated ? <Outlet /> : <Navigate to="/admin/login" replace />;
 }
 
 export default ProtectedRoute;

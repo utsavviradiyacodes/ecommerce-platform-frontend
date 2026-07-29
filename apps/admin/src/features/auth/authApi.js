@@ -12,6 +12,15 @@ export async function loginAdmin(credentials) {
   return res.data;
 }
 
+export async function requestAdminPasswordReset(email) {
+  const res = await axiosInstance.post("/auth/forgotPassword", {
+    email,
+    role: "admin",
+  });
+
+  return res.data;
+}
+
 export async function getCurrentAdmin(accessToken) {
   const res = await axiosInstance.get("/auth/getMe", {
     headers: {
