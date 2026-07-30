@@ -11,11 +11,11 @@ import Button from "../../components/ui/button/Button.jsx";
 
 import {
   clearAdminPasswordResetOtpRequestFeedback,
-  setAdminPasswordRecoveryEmail,
   requestAdminPasswordResetThunk,
   selectAdminPasswordRecovery,
   selectAdminPasswordResetOtpRequestError,
   selectIsAdminPasswordResetOtpRequestPending,
+  setAdminPasswordRecoveryEmail,
 } from "../../features/auth/authSlice.js";
 
 import { forgotPasswordSchema } from "../../schemas/auth/forgotPasswordSchema.js";
@@ -75,7 +75,11 @@ function ForgotPasswordPage() {
     );
 
     if (requestAdminPasswordResetThunk.fulfilled.match(resultAction)) {
-      navigate("/admin/verify-reset-code");
+      navigate("/admin/verify-reset-code", {
+        state: {
+          from: "admin-forgot-password",
+        },
+      });
     }
   }
 

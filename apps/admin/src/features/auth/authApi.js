@@ -21,6 +21,17 @@ export async function requestAdminPasswordReset(email) {
   return res.data;
 }
 
+export async function verifyAdminPasswordResetOtp(verificationData) {
+  const { userId, otp } = verificationData;
+
+  const response = await axiosInstance.post("/auth/verifyPasswordResetOTP", {
+    userId,
+    otp,
+  });
+
+  return response.data;
+}
+
 export async function getCurrentAdmin(accessToken) {
   const res = await axiosInstance.get("/auth/getMe", {
     headers: {
