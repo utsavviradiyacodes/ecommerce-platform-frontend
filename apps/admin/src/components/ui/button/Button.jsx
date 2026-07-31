@@ -21,7 +21,7 @@ function Button({
       "bg-white text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:bg-white/[0.03] dark:hover:text-gray-300",
   };
 
-  const buttonClasses = `inline-flex items-center justify-center gap-2 rounded-lg transition ${
+  const buttonClasses = `inline-flex items-center justify-center gap-2 rounded-lg transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:focus-visible:outline-brand-400 ${
     sizeClasses[size]
   } ${variantClasses[variant]} ${
     disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"

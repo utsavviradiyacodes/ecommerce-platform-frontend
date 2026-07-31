@@ -3,7 +3,39 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>sellora-frontend</title>
+    <script>
+      (() => {
+        const validThemes = new Set(["light", "dark", "system"]);
+        let theme = "system";
+
+        try {
+          const storedTheme = window.localStorage.getItem("theme");
+
+          if (validThemes.has(storedTheme)) {
+            theme = storedTheme;
+          }
+        } catch {
+          // Fall back to the operating-system preference.
+        }
+
+        let systemPrefersDark = false;
+
+        try {
+          systemPrefersDark =
+            typeof window.matchMedia === "function" &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches;
+        } catch {
+          // Use light mode when the system preference cannot be read.
+        }
+
+        const isDark =
+          theme === "dark" || (theme === "system" && systemPrefersDark);
+
+        document.documentElement.classList.toggle("dark", isDark);
+        document.documentElement.style.colorScheme = isDark ? "dark" : "light";
+      })();
+    </script>
+    <title>Sellora Admin</title>
   </head>
   <body>
     <div id="root"></div>

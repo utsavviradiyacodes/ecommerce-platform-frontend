@@ -30,7 +30,10 @@ store.subscribe(() => {
     currentPasswordRecovery.email !== previousPasswordRecovery.email ||
     currentPasswordRecovery.userId !== previousPasswordRecovery.userId ||
     currentPasswordRecovery.resendAvailableAt !==
-      previousPasswordRecovery.resendAvailableAt;
+      previousPasswordRecovery.resendAvailableAt ||
+    currentPasswordRecovery.verifiedOtp !==
+      previousPasswordRecovery.verifiedOtp ||
+    currentPasswordRecovery.phase !== previousPasswordRecovery.phase;
 
   if (!hasPasswordRecoveryChanged) {
     return;

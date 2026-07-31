@@ -4,6 +4,7 @@ import {
   getCurrentAdmin,
   refreshAdminAccessToken,
   requestAdminPasswordReset,
+  resetAdminPassword,
   signInAdmin,
   signOutAdmin,
   verifyAdminPasswordResetOtp,
@@ -11,8 +12,10 @@ import {
 
 import {
   REQUEST_STATUS,
+  clearRequestFeedback,
   createRequestState,
   getRejectedActionErrorMessage,
+  isRequestStateOwnedBy,
   resetRequestState,
   setRequestFailed,
   setRequestPending,
@@ -21,7 +24,36 @@ import {
 
 import { getApiErrorMessage } from "../../utils/api/getApiErrorMessage.js";
 
-import { PASSWORD_RESET_OTP_RESEND_COOLDOWN_MS } from "./authConstants.js";
+import {
+  ADMIN_PASSWORD_RECOVERY_NOTICE,
+  ADMIN_PASSWORD_RECOVERY_PHASE,
+  ADMIN_PASSWORD_RECOVERY_UNEXPECTED_RESPONSE_MESSAGE,
+  PASSWORD_RESET_OTP_RESEND_COOLDOWN_MS,
+  getSafeAdminPasswordRecoveryPhase,
+  isAdminPasswordRecoveryStateValid,
+} from "./authConstants.js";
+
+const PASSWORD_RESET_REJECTION_REASON = {
+  OTP_INVALID: "otpInvalid",
+};
+
+const INVALID_OR_EXPIRED_OTP_MESSAGES = new Set([
+  "Invalid OTP code",
+  "OTP has expired",
+  "OTP has expired. Please request a new one.",
+]);
+
+const ADMIN_SESSION_INITIALIZATION_OUTCOME = {
+  AUTHENTICATED: "authenticated",
+  UNAUTHENTICATED: "unauthenticated",
+};
+
+const ADMIN_SESSION_INITIALIZATION_FAILURE_REASON = {
+  TEMPORARILY_UNAVAILABLE: "temporarilyUnavailable",
+};
+
+const ADMIN_SESSION_INITIALIZATION_FAILURE_MESSAGE =
+  "We couldn't check your admin session. Please try again.";
 
 const initialState = {
   admin: null,
@@ -31,17 +63,84 @@ const initialState = {
     email: "",
     userId: null,
     resendAvailableAt: null,
+    verifiedOtp: null,
+    phase: ADMIN_PASSWORD_RECOVERY_PHASE.IDLE,
+  },
+
+  notices: {
+    passwordRecovery: null,
+    passwordResetSuccess: null,
   },
 
   requests: {
-    initializeSession: createRequestState(REQUEST_STATUS.PENDING),
+    initializeSession: createRequestState(),
     signIn: createRequestState(),
     signOut: createRequestState(),
     requestPasswordReset: createRequestState(),
     resendPasswordResetOtp: createRequestState(),
     verifyPasswordResetOtp: createRequestState(),
+    resetPassword: createRequestState(),
   },
 };
+
+function resetPasswordRecoveryRequestStates(state) {
+  resetRequestState(state.requests.requestPasswordReset);
+  resetRequestState(state.requests.resendPasswordResetOtp);
+  resetRequestState(state.requests.verifyPasswordResetOtp);
+  resetRequestState(state.requests.resetPassword);
+}
+
+function clearPasswordRecoveryData(
+  state,
+  phase = ADMIN_PASSWORD_RECOVERY_PHASE.IDLE
+) {
+  state.passwordRecovery.email = "";
+  state.passwordRecovery.userId = null;
+  state.passwordRecovery.resendAvailableAt = null;
+  state.passwordRecovery.verifiedOtp = null;
+  state.passwordRecovery.phase = phase;
+}
+
+function clearAdminAuthenticationBoundaryState(state) {
+  state.admin = null;
+  state.accessToken = null;
+
+  clearPasswordRecoveryData(state);
+  state.notices.passwordRecovery = null;
+  state.notices.passwordResetSuccess = null;
+
+  resetRequestState(state.requests.initializeSession);
+  resetRequestState(state.requests.signIn);
+  resetRequestState(state.requests.signOut);
+  resetPasswordRecoveryRequestStates(state);
+}
+
+function isOwnedRequest(requestState, action) {
+  return isRequestStateOwnedBy(requestState, action.meta.requestId);
+}
+
+function createRequestedPasswordRecovery(email, userId, resendAvailableAt) {
+  return {
+    email,
+    userId,
+    resendAvailableAt,
+    verifiedOtp: null,
+    phase: ADMIN_PASSWORD_RECOVERY_PHASE.CODE_REQUESTED,
+  };
+}
+
+function createVerifiedPasswordRecovery(
+  passwordRecovery,
+  userId,
+  verifiedOtp
+) {
+  return {
+    ...passwordRecovery,
+    userId,
+    verifiedOtp,
+    phase: ADMIN_PASSWORD_RECOVERY_PHASE.CODE_VERIFIED,
+  };
+}
 
 // -----------------------------------------------------------------------------
 // Initialize the current admin session
@@ -49,16 +148,38 @@ const initialState = {
 
 export const initializeAdminSessionThunk = createAsyncThunk(
   "auth/initializeAdminSession",
-  async () => {
-    const refreshResponse = await refreshAdminAccessToken();
-    const accessToken = refreshResponse.token;
+  async (_, { rejectWithValue }) => {
+    try {
+      const refreshResponse = await refreshAdminAccessToken();
+      const accessToken = refreshResponse.token;
 
-    const currentAdminResponse = await getCurrentAdmin(accessToken);
+      const currentAdminResponse = await getCurrentAdmin(accessToken, {
+        skipAuthRefresh: true,
+      });
 
-    return {
-      accessToken,
-      admin: currentAdminResponse.data,
-    };
+      return {
+        outcome: ADMIN_SESSION_INITIALIZATION_OUTCOME.AUTHENTICATED,
+        accessToken,
+        admin: currentAdminResponse.data,
+      };
+    } catch (error) {
+      if (error?.response?.status === 401) {
+        return {
+          outcome: ADMIN_SESSION_INITIALIZATION_OUTCOME.UNAUTHENTICATED,
+        };
+      }
+
+      return rejectWithValue({
+        reason:
+          ADMIN_SESSION_INITIALIZATION_FAILURE_REASON.TEMPORARILY_UNAVAILABLE,
+        message: ADMIN_SESSION_INITIALIZATION_FAILURE_MESSAGE,
+      });
+    }
+  },
+  {
+    condition: (_, { getState }) =>
+      getState().auth.requests.initializeSession.status !==
+      REQUEST_STATUS.PENDING,
   }
 );
 
@@ -92,8 +213,9 @@ export const requestAdminPasswordResetThunk = createAsyncThunk(
       const response = await requestAdminPasswordReset(email);
 
       return {
-        ...response,
-
+        success: response.success,
+        message: response.message,
+        userId: response.userId,
         resendAvailableAt: Date.now() + PASSWORD_RESET_OTP_RESEND_COOLDOWN_MS,
       };
     } catch (error) {
@@ -104,8 +226,17 @@ export const requestAdminPasswordResetThunk = createAsyncThunk(
         )
       );
     }
+  },
+  {
+    condition: (_, { getState }) =>
+      getState().auth.requests.requestPasswordReset.status !==
+      REQUEST_STATUS.PENDING,
   }
 );
+
+// -----------------------------------------------------------------------------
+// Resend the password-reset OTP
+// -----------------------------------------------------------------------------
 
 export const resendAdminPasswordResetOtpThunk = createAsyncThunk(
   "auth/resendAdminPasswordResetOtp",
@@ -114,8 +245,9 @@ export const resendAdminPasswordResetOtpThunk = createAsyncThunk(
       const response = await requestAdminPasswordReset(email);
 
       return {
-        ...response,
-
+        success: response.success,
+        message: response.message,
+        userId: response.userId,
         resendAvailableAt: Date.now() + PASSWORD_RESET_OTP_RESEND_COOLDOWN_MS,
       };
     } catch (error) {
@@ -126,6 +258,21 @@ export const resendAdminPasswordResetOtpThunk = createAsyncThunk(
         )
       );
     }
+  },
+  {
+    condition: (email, { getState }) => {
+      const { passwordRecovery, requests } = getState().auth;
+
+      return (
+        passwordRecovery.phase ===
+          ADMIN_PASSWORD_RECOVERY_PHASE.CODE_REQUESTED &&
+        isAdminPasswordRecoveryStateValid(passwordRecovery) &&
+        passwordRecovery.email === email &&
+        requests.resendPasswordResetOtp.status !== REQUEST_STATUS.PENDING &&
+        requests.verifyPasswordResetOtp.status !== REQUEST_STATUS.PENDING &&
+        requests.resetPassword.status !== REQUEST_STATUS.PENDING
+      );
+    },
   }
 );
 
@@ -148,6 +295,64 @@ export const verifyAdminPasswordResetOtpThunk = createAsyncThunk(
         )
       );
     }
+  },
+  {
+    condition: ({ userId }, { getState }) => {
+      const { passwordRecovery, requests } = getState().auth;
+
+      return (
+        passwordRecovery.phase ===
+          ADMIN_PASSWORD_RECOVERY_PHASE.CODE_REQUESTED &&
+        isAdminPasswordRecoveryStateValid(passwordRecovery) &&
+        passwordRecovery.userId === userId &&
+        requests.resendPasswordResetOtp.status !== REQUEST_STATUS.PENDING &&
+        requests.verifyPasswordResetOtp.status !== REQUEST_STATUS.PENDING
+      );
+    },
+  }
+);
+
+// -----------------------------------------------------------------------------
+// Reset the admin password
+// -----------------------------------------------------------------------------
+
+export const resetAdminPasswordThunk = createAsyncThunk(
+  "auth/resetAdminPassword",
+  async (passwordResetData, { rejectWithValue }) => {
+    try {
+      const response = await resetAdminPassword(passwordResetData);
+
+      return response;
+    } catch (error) {
+      const message = getApiErrorMessage(
+        error,
+        "Unable to reset the password. Please try again."
+      );
+      const isInvalidOrExpiredOtp =
+        error?.response?.status === 400 &&
+        INVALID_OR_EXPIRED_OTP_MESSAGES.has(message);
+
+      return rejectWithValue({
+        message,
+        reason: isInvalidOrExpiredOtp
+          ? PASSWORD_RESET_REJECTION_REASON.OTP_INVALID
+          : null,
+      });
+    }
+  },
+  {
+    condition: ({ userId, otp }, { getState }) => {
+      const { passwordRecovery, requests } = getState().auth;
+
+      return (
+        passwordRecovery.phase ===
+          ADMIN_PASSWORD_RECOVERY_PHASE.CODE_VERIFIED &&
+        isAdminPasswordRecoveryStateValid(passwordRecovery) &&
+        passwordRecovery.userId === userId &&
+        passwordRecovery.verifiedOtp === otp &&
+        requests.resetPassword.status !== REQUEST_STATUS.PENDING
+      );
+    },
   }
 );
 
@@ -175,33 +380,112 @@ const authSlice = createSlice({
   initialState,
 
   reducers: {
+    setAdminAccessToken(state, action) {
+      state.accessToken = action.payload;
+    },
+
+    invalidateAdminSession(state) {
+      clearAdminAuthenticationBoundaryState(state);
+    },
+
     restoreAdminPasswordRecoverySession(state, action) {
       state.passwordRecovery.email = action.payload.email;
       state.passwordRecovery.userId = action.payload.userId;
       state.passwordRecovery.resendAvailableAt =
         action.payload.resendAvailableAt;
+      state.passwordRecovery.verifiedOtp = action.payload.verifiedOtp;
+      state.passwordRecovery.phase = action.payload.phase;
+    },
+
+    repairAdminPasswordRecoveryState(state) {
+      const safePhase = getSafeAdminPasswordRecoveryPhase(
+        state.passwordRecovery
+      );
+
+      if (safePhase === ADMIN_PASSWORD_RECOVERY_PHASE.CODE_REQUESTED) {
+        state.passwordRecovery.verifiedOtp = null;
+        state.passwordRecovery.phase =
+          ADMIN_PASSWORD_RECOVERY_PHASE.CODE_REQUESTED;
+
+        resetRequestState(state.requests.verifyPasswordResetOtp);
+        resetRequestState(state.requests.resetPassword);
+        return;
+      }
+
+      if (safePhase === ADMIN_PASSWORD_RECOVERY_PHASE.IDLE) {
+        state.passwordRecovery.email =
+          typeof state.passwordRecovery.email === "string"
+            ? state.passwordRecovery.email
+            : "";
+        state.passwordRecovery.userId = null;
+        state.passwordRecovery.resendAvailableAt = null;
+        state.passwordRecovery.verifiedOtp = null;
+        state.passwordRecovery.phase = ADMIN_PASSWORD_RECOVERY_PHASE.IDLE;
+
+        resetPasswordRecoveryRequestStates(state);
+      }
     },
 
     setAdminPasswordRecoveryEmail(state, action) {
-      state.passwordRecovery.email = action.payload;
+      state.passwordRecovery.email =
+        typeof action.payload === "string" ? action.payload.trim() : "";
       state.passwordRecovery.userId = null;
       state.passwordRecovery.resendAvailableAt = null;
+      state.passwordRecovery.verifiedOtp = null;
+      state.passwordRecovery.phase = ADMIN_PASSWORD_RECOVERY_PHASE.IDLE;
+      state.notices.passwordRecovery = null;
+
+      resetPasswordRecoveryRequestStates(state);
+    },
+
+    cancelAdminPasswordRecovery(state) {
+      clearPasswordRecoveryData(
+        state,
+        ADMIN_PASSWORD_RECOVERY_PHASE.CANCELLED
+      );
+      state.notices.passwordRecovery = null;
+
+      resetPasswordRecoveryRequestStates(state);
+    },
+
+    completeAdminPasswordRecoveryNavigation(state) {
+      if (
+        state.passwordRecovery.phase ===
+          ADMIN_PASSWORD_RECOVERY_PHASE.CANCELLED ||
+        state.passwordRecovery.phase ===
+          ADMIN_PASSWORD_RECOVERY_PHASE.RESET_SUCCEEDED
+      ) {
+        state.passwordRecovery.phase = ADMIN_PASSWORD_RECOVERY_PHASE.IDLE;
+        resetPasswordRecoveryRequestStates(state);
+      }
+    },
+
+    consumeAdminPasswordRecoveryNotice(state) {
+      state.notices.passwordRecovery = null;
+    },
+
+    consumeAdminPasswordResetSuccessMessage(state) {
+      state.notices.passwordResetSuccess = null;
     },
 
     clearAdminSignInRequestFeedback(state) {
-      resetRequestState(state.requests.signIn);
+      clearRequestFeedback(state.requests.signIn);
     },
 
     clearAdminPasswordResetOtpRequestFeedback(state) {
-      resetRequestState(state.requests.requestPasswordReset);
+      clearRequestFeedback(state.requests.requestPasswordReset);
     },
 
     clearAdminPasswordResetOtpResendFeedback(state) {
-      resetRequestState(state.requests.resendPasswordResetOtp);
+      clearRequestFeedback(state.requests.resendPasswordResetOtp);
     },
 
     clearAdminPasswordResetOtpVerificationFeedback(state) {
-      resetRequestState(state.requests.verifyPasswordResetOtp);
+      clearRequestFeedback(state.requests.verifyPasswordResetOtp);
+    },
+
+    clearAdminPasswordResetFeedback(state) {
+      clearRequestFeedback(state.requests.resetPassword);
     },
   },
 
@@ -220,6 +504,12 @@ const authSlice = createSlice({
     selectIsAdminSessionInitializationPending: (sliceState) =>
       sliceState.requests.initializeSession.status === REQUEST_STATUS.PENDING,
 
+    selectHasAdminSessionInitializationFailed: (sliceState) =>
+      sliceState.requests.initializeSession.status === REQUEST_STATUS.FAILED,
+
+    selectAdminSessionInitializationError: (sliceState) =>
+      sliceState.requests.initializeSession.error,
+
     // -------------------- Sign In request --------------------
 
     selectIsAdminSignInPending: (sliceState) =>
@@ -235,6 +525,12 @@ const authSlice = createSlice({
     // -------------------- Password-recovery workflow data --------------------
 
     selectAdminPasswordRecovery: (sliceState) => sliceState.passwordRecovery,
+
+    selectAdminPasswordRecoveryNotice: (sliceState) =>
+      sliceState.notices.passwordRecovery,
+
+    selectAdminPasswordResetCompletionMessage: (sliceState) =>
+      sliceState.notices.passwordResetSuccess,
 
     // -------------------- Password-reset OTP request --------------------
 
@@ -280,6 +576,20 @@ const authSlice = createSlice({
 
     selectAdminPasswordResetOtpVerificationSuccessMessage: (sliceState) =>
       sliceState.requests.verifyPasswordResetOtp.successMessage,
+
+    // -------------------- Password reset --------------------
+
+    selectAdminPasswordResetRequest: (sliceState) =>
+      sliceState.requests.resetPassword,
+
+    selectIsAdminPasswordResetPending: (sliceState) =>
+      sliceState.requests.resetPassword.status === REQUEST_STATUS.PENDING,
+
+    selectAdminPasswordResetError: (sliceState) =>
+      sliceState.requests.resetPassword.error,
+
+    selectAdminPasswordResetSuccessMessage: (sliceState) =>
+      sliceState.requests.resetPassword.successMessage,
   },
 
   extraReducers: (builder) => {
@@ -287,47 +597,62 @@ const authSlice = createSlice({
 
       // -------------------- Initialize admin session --------------------
 
-      .addCase(initializeAdminSessionThunk.pending, (state) => {
-        setRequestPending(state.requests.initializeSession);
+      .addCase(initializeAdminSessionThunk.pending, (state, action) => {
+        setRequestPending(
+          state.requests.initializeSession,
+          action.meta.requestId
+        );
       })
       .addCase(initializeAdminSessionThunk.fulfilled, (state, action) => {
-        state.admin = action.payload.admin;
-        state.accessToken = action.payload.accessToken;
+        if (!isOwnedRequest(state.requests.initializeSession, action)) {
+          return;
+        }
+
+        if (
+          action.payload.outcome ===
+          ADMIN_SESSION_INITIALIZATION_OUTCOME.AUTHENTICATED
+        ) {
+          state.admin = action.payload.admin;
+          state.accessToken = action.payload.accessToken;
+        } else {
+          state.admin = null;
+          state.accessToken = null;
+        }
 
         setRequestSucceeded(state.requests.initializeSession);
       })
       .addCase(initializeAdminSessionThunk.rejected, (state, action) => {
-        state.admin = null;
-        state.accessToken = null;
+        if (!isOwnedRequest(state.requests.initializeSession, action)) {
+          return;
+        }
 
         setRequestFailed(
           state.requests.initializeSession,
-          getRejectedActionErrorMessage(
-            action,
-            "Unable to initialize the admin session."
-          )
+          typeof action.payload?.message === "string"
+            ? action.payload.message
+            : ADMIN_SESSION_INITIALIZATION_FAILURE_MESSAGE
         );
       })
 
       // -------------------- Sign in --------------------
 
-      .addCase(signInAdminThunk.pending, (state) => {
-        setRequestPending(state.requests.signIn);
+      .addCase(signInAdminThunk.pending, (state, action) => {
+        setRequestPending(state.requests.signIn, action.meta.requestId);
       })
       .addCase(signInAdminThunk.fulfilled, (state, action) => {
+        if (!isOwnedRequest(state.requests.signIn, action)) {
+          return;
+        }
+
         const { token, ...admin } = action.payload.data;
 
         state.accessToken = token;
         state.admin = admin;
 
-        // A successful sign-in ends any unfinished recovery flow.
-        state.passwordRecovery.email = "";
-        state.passwordRecovery.userId = null;
-        state.passwordRecovery.resendAvailableAt = null;
-
-        resetRequestState(state.requests.requestPasswordReset);
-        resetRequestState(state.requests.resendPasswordResetOtp);
-        resetRequestState(state.requests.verifyPasswordResetOtp);
+        clearPasswordRecoveryData(state);
+        state.notices.passwordRecovery = null;
+        state.notices.passwordResetSuccess = null;
+        resetPasswordRecoveryRequestStates(state);
 
         setRequestSucceeded(
           state.requests.signIn,
@@ -335,6 +660,10 @@ const authSlice = createSlice({
         );
       })
       .addCase(signInAdminThunk.rejected, (state, action) => {
+        if (!isOwnedRequest(state.requests.signIn, action)) {
+          return;
+        }
+
         setRequestFailed(
           state.requests.signIn,
           getRejectedActionErrorMessage(
@@ -347,20 +676,50 @@ const authSlice = createSlice({
       // -------------------- Request password-reset OTP --------------------
 
       .addCase(requestAdminPasswordResetThunk.pending, (state, action) => {
-        setRequestPending(state.requests.requestPasswordReset);
+        setRequestPending(
+          state.requests.requestPasswordReset,
+          action.meta.requestId
+        );
 
         state.passwordRecovery.email = action.meta.arg;
         state.passwordRecovery.userId = null;
         state.passwordRecovery.resendAvailableAt = null;
+        state.passwordRecovery.verifiedOtp = null;
+        state.passwordRecovery.phase = ADMIN_PASSWORD_RECOVERY_PHASE.IDLE;
+        state.notices.passwordRecovery = null;
 
         resetRequestState(state.requests.resendPasswordResetOtp);
         resetRequestState(state.requests.verifyPasswordResetOtp);
+        resetRequestState(state.requests.resetPassword);
       })
       .addCase(requestAdminPasswordResetThunk.fulfilled, (state, action) => {
-        state.passwordRecovery.email = action.meta.arg;
-        state.passwordRecovery.userId = action.payload.userId;
-        state.passwordRecovery.resendAvailableAt =
-          action.payload.resendAvailableAt;
+        if (!isOwnedRequest(state.requests.requestPasswordReset, action)) {
+          return;
+        }
+
+        const nextPasswordRecovery = createRequestedPasswordRecovery(
+          action.meta.arg,
+          action.payload?.userId,
+          action.payload?.resendAvailableAt
+        );
+
+        if (
+          action.payload?.success !== true ||
+          !isAdminPasswordRecoveryStateValid(nextPasswordRecovery)
+        ) {
+          state.passwordRecovery.userId = null;
+          state.passwordRecovery.resendAvailableAt = null;
+          state.passwordRecovery.verifiedOtp = null;
+          state.passwordRecovery.phase = ADMIN_PASSWORD_RECOVERY_PHASE.IDLE;
+
+          setRequestFailed(
+            state.requests.requestPasswordReset,
+            ADMIN_PASSWORD_RECOVERY_UNEXPECTED_RESPONSE_MESSAGE
+          );
+          return;
+        }
+
+        state.passwordRecovery = nextPasswordRecovery;
 
         setRequestSucceeded(
           state.requests.requestPasswordReset,
@@ -368,7 +727,14 @@ const authSlice = createSlice({
         );
       })
       .addCase(requestAdminPasswordResetThunk.rejected, (state, action) => {
+        if (!isOwnedRequest(state.requests.requestPasswordReset, action)) {
+          return;
+        }
+
         state.passwordRecovery.userId = null;
+        state.passwordRecovery.resendAvailableAt = null;
+        state.passwordRecovery.verifiedOtp = null;
+        state.passwordRecovery.phase = ADMIN_PASSWORD_RECOVERY_PHASE.IDLE;
 
         setRequestFailed(
           state.requests.requestPasswordReset,
@@ -381,18 +747,36 @@ const authSlice = createSlice({
 
       // -------------------- Resend password-reset OTP --------------------
 
-      .addCase(resendAdminPasswordResetOtpThunk.pending, (state) => {
-        setRequestPending(state.requests.resendPasswordResetOtp);
+      .addCase(resendAdminPasswordResetOtpThunk.pending, (state, action) => {
+        setRequestPending(
+          state.requests.resendPasswordResetOtp,
+          action.meta.requestId
+        );
+        state.notices.passwordRecovery = null;
       })
       .addCase(resendAdminPasswordResetOtpThunk.fulfilled, (state, action) => {
-        state.passwordRecovery.email = action.meta.arg;
-
-        if (action.payload?.userId) {
-          state.passwordRecovery.userId = action.payload.userId;
+        if (!isOwnedRequest(state.requests.resendPasswordResetOtp, action)) {
+          return;
         }
 
-        state.passwordRecovery.resendAvailableAt =
-          action.payload.resendAvailableAt;
+        const nextPasswordRecovery = createRequestedPasswordRecovery(
+          action.meta.arg,
+          action.payload?.userId,
+          action.payload?.resendAvailableAt
+        );
+
+        if (
+          action.payload?.success !== true ||
+          !isAdminPasswordRecoveryStateValid(nextPasswordRecovery)
+        ) {
+          setRequestFailed(
+            state.requests.resendPasswordResetOtp,
+            ADMIN_PASSWORD_RECOVERY_UNEXPECTED_RESPONSE_MESSAGE
+          );
+          return;
+        }
+
+        state.passwordRecovery = nextPasswordRecovery;
 
         setRequestSucceeded(
           state.requests.resendPasswordResetOtp,
@@ -400,8 +784,13 @@ const authSlice = createSlice({
         );
 
         resetRequestState(state.requests.verifyPasswordResetOtp);
+        resetRequestState(state.requests.resetPassword);
       })
       .addCase(resendAdminPasswordResetOtpThunk.rejected, (state, action) => {
+        if (!isOwnedRequest(state.requests.resendPasswordResetOtp, action)) {
+          return;
+        }
+
         setRequestFailed(
           state.requests.resendPasswordResetOtp,
           getRejectedActionErrorMessage(
@@ -413,14 +802,39 @@ const authSlice = createSlice({
 
       // -------------------- Verify password-reset OTP --------------------
 
-      .addCase(verifyAdminPasswordResetOtpThunk.pending, (state) => {
-        setRequestPending(state.requests.verifyPasswordResetOtp);
+      .addCase(verifyAdminPasswordResetOtpThunk.pending, (state, action) => {
+        setRequestPending(
+          state.requests.verifyPasswordResetOtp,
+          action.meta.requestId
+        );
+        state.notices.passwordRecovery = null;
       })
       .addCase(verifyAdminPasswordResetOtpThunk.fulfilled, (state, action) => {
-        // Keep the confirmed userId returned by the backend.
-        if (action.payload?.userId) {
-          state.passwordRecovery.userId = action.payload.userId;
+        if (!isOwnedRequest(state.requests.verifyPasswordResetOtp, action)) {
+          return;
         }
+
+        const nextPasswordRecovery = createVerifiedPasswordRecovery(
+          state.passwordRecovery,
+          action.payload?.userId,
+          action.meta.arg.otp
+        );
+
+        if (
+          action.payload?.success !== true ||
+          action.payload?.userId !== state.passwordRecovery.userId ||
+          !isAdminPasswordRecoveryStateValid(nextPasswordRecovery)
+        ) {
+          setRequestFailed(
+            state.requests.verifyPasswordResetOtp,
+            ADMIN_PASSWORD_RECOVERY_UNEXPECTED_RESPONSE_MESSAGE
+          );
+          return;
+        }
+
+        state.passwordRecovery = nextPasswordRecovery;
+
+        resetRequestState(state.requests.resetPassword);
 
         setRequestSucceeded(
           state.requests.verifyPasswordResetOtp,
@@ -428,6 +842,10 @@ const authSlice = createSlice({
         );
       })
       .addCase(verifyAdminPasswordResetOtpThunk.rejected, (state, action) => {
+        if (!isOwnedRequest(state.requests.verifyPasswordResetOtp, action)) {
+          return;
+        }
+
         setRequestFailed(
           state.requests.verifyPasswordResetOtp,
           getRejectedActionErrorMessage(
@@ -437,14 +855,78 @@ const authSlice = createSlice({
         );
       })
 
+      // -------------------- Reset password --------------------
+
+      .addCase(resetAdminPasswordThunk.pending, (state, action) => {
+        setRequestPending(state.requests.resetPassword, action.meta.requestId);
+      })
+      .addCase(resetAdminPasswordThunk.fulfilled, (state, action) => {
+        if (!isOwnedRequest(state.requests.resetPassword, action)) {
+          return;
+        }
+
+        if (action.payload?.success !== true) {
+          setRequestFailed(
+            state.requests.resetPassword,
+            ADMIN_PASSWORD_RECOVERY_UNEXPECTED_RESPONSE_MESSAGE
+          );
+          return;
+        }
+
+        const successMessage =
+          action.payload?.message ||
+          "Password reset successfully. You can now sign in.";
+
+        clearPasswordRecoveryData(
+          state,
+          ADMIN_PASSWORD_RECOVERY_PHASE.RESET_SUCCEEDED
+        );
+        state.notices.passwordRecovery = null;
+        state.notices.passwordResetSuccess = successMessage;
+
+        resetRequestState(state.requests.requestPasswordReset);
+        resetRequestState(state.requests.resendPasswordResetOtp);
+        resetRequestState(state.requests.verifyPasswordResetOtp);
+
+        setRequestSucceeded(state.requests.resetPassword, successMessage);
+      })
+      .addCase(resetAdminPasswordThunk.rejected, (state, action) => {
+        if (!isOwnedRequest(state.requests.resetPassword, action)) {
+          return;
+        }
+
+        setRequestFailed(
+          state.requests.resetPassword,
+          getRejectedActionErrorMessage(
+            action,
+            "Unable to reset the password. Please try again."
+          )
+        );
+
+        if (
+          action.payload?.reason === PASSWORD_RESET_REJECTION_REASON.OTP_INVALID
+        ) {
+          state.passwordRecovery.verifiedOtp = null;
+          state.passwordRecovery.phase =
+            ADMIN_PASSWORD_RECOVERY_PHASE.CODE_REQUESTED;
+          state.notices.passwordRecovery =
+            ADMIN_PASSWORD_RECOVERY_NOTICE.OTP_REPLACED;
+
+          resetRequestState(state.requests.verifyPasswordResetOtp);
+        }
+      })
+
       // -------------------- Sign out --------------------
 
-      .addCase(signOutAdminThunk.pending, (state) => {
-        setRequestPending(state.requests.signOut);
+      .addCase(signOutAdminThunk.pending, (state, action) => {
+        setRequestPending(state.requests.signOut, action.meta.requestId);
       })
       .addCase(signOutAdminThunk.fulfilled, (state, action) => {
-        state.admin = null;
-        state.accessToken = null;
+        if (!isOwnedRequest(state.requests.signOut, action)) {
+          return;
+        }
+
+        clearAdminAuthenticationBoundaryState(state);
 
         setRequestSucceeded(
           state.requests.signOut,
@@ -452,6 +934,10 @@ const authSlice = createSlice({
         );
       })
       .addCase(signOutAdminThunk.rejected, (state, action) => {
+        if (!isOwnedRequest(state.requests.signOut, action)) {
+          return;
+        }
+
         setRequestFailed(
           state.requests.signOut,
           getRejectedActionErrorMessage(
@@ -475,6 +961,8 @@ export const {
 
   // Session initialization request
   selectIsAdminSessionInitializationPending,
+  selectHasAdminSessionInitializationFailed,
+  selectAdminSessionInitializationError,
 
   // Sign In request
   selectIsAdminSignInPending,
@@ -485,6 +973,8 @@ export const {
 
   // Password-recovery workflow data
   selectAdminPasswordRecovery,
+  selectAdminPasswordRecoveryNotice,
+  selectAdminPasswordResetCompletionMessage,
 
   // Password-reset OTP request
   selectAdminPasswordResetOtpRequest,
@@ -503,6 +993,12 @@ export const {
   selectIsAdminPasswordResetOtpVerificationPending,
   selectAdminPasswordResetOtpVerificationError,
   selectAdminPasswordResetOtpVerificationSuccessMessage,
+
+  // Password reset
+  selectAdminPasswordResetRequest,
+  selectIsAdminPasswordResetPending,
+  selectAdminPasswordResetError,
+  selectAdminPasswordResetSuccessMessage,
 } = authSlice.selectors;
 
 // -----------------------------------------------------------------------------
@@ -510,12 +1006,20 @@ export const {
 // -----------------------------------------------------------------------------
 
 export const {
+  setAdminAccessToken,
+  invalidateAdminSession,
   restoreAdminPasswordRecoverySession,
+  repairAdminPasswordRecoveryState,
   setAdminPasswordRecoveryEmail,
+  cancelAdminPasswordRecovery,
+  completeAdminPasswordRecoveryNavigation,
+  consumeAdminPasswordRecoveryNotice,
+  consumeAdminPasswordResetSuccessMessage,
   clearAdminSignInRequestFeedback,
   clearAdminPasswordResetOtpRequestFeedback,
   clearAdminPasswordResetOtpResendFeedback,
   clearAdminPasswordResetOtpVerificationFeedback,
+  clearAdminPasswordResetFeedback,
 } = authSlice.actions;
 
 export default authSlice.reducer;

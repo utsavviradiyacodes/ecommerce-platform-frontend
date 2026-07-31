@@ -1,6 +1,18 @@
+import {
+  ADMIN_PASSWORD_RECOVERY_PHASE,
+  getSafeAdminPasswordRecoveryPhase,
+} from "../../features/auth/authConstants.js";
+
 const ADMIN_PASSWORD_RECOVERY_SESSION_KEY = "sellora.admin.passwordRecovery";
 
 function normalizePasswordRecoverySession(value) {
+  if (
+    value?.phase === ADMIN_PASSWORD_RECOVERY_PHASE.CANCELLED ||
+    value?.phase === ADMIN_PASSWORD_RECOVERY_PHASE.RESET_SUCCEEDED
+  ) {
+    return null;
+  }
+
   const email = typeof value?.email === "string" ? value.email.trim() : "";
 
   if (!email) {
@@ -8,7 +20,9 @@ function normalizePasswordRecoverySession(value) {
   }
 
   const userId =
-    typeof value?.userId === "string" && value.userId ? value.userId : null;
+    typeof value?.userId === "string" && value.userId.trim()
+      ? value.userId.trim()
+      : null;
 
   const resendAvailableAt =
     userId &&
@@ -17,10 +31,47 @@ function normalizePasswordRecoverySession(value) {
       ? value.resendAvailableAt
       : null;
 
+  const verifiedOtp =
+    userId &&
+    typeof value?.verifiedOtp === "string" &&
+    /^\d{6}$/.test(value.verifiedOtp)
+      ? value.verifiedOtp
+      : null;
+
+  const shouldInferLegacyPhase = value?.phase == null;
+
+  const phase = getSafeAdminPasswordRecoveryPhase(
+    {
+      email,
+      userId,
+      resendAvailableAt,
+      verifiedOtp,
+      phase: value?.phase,
+    },
+    {
+      inferLegacyPhase: shouldInferLegacyPhase,
+    }
+  );
+
+  if (phase === ADMIN_PASSWORD_RECOVERY_PHASE.IDLE) {
+    return {
+      email,
+      userId: null,
+      resendAvailableAt: null,
+      verifiedOtp: null,
+      phase,
+    };
+  }
+
   return {
     email,
     userId,
     resendAvailableAt,
+    verifiedOtp:
+      phase === ADMIN_PASSWORD_RECOVERY_PHASE.CODE_VERIFIED
+        ? verifiedOtp
+        : null,
+    phase,
   };
 }
 
@@ -35,6 +86,7 @@ export function readAdminPasswordRecoverySession() {
     }
 
     const parsedValue = JSON.parse(storedValue);
+
     const normalizedSession = normalizePasswordRecoverySession(parsedValue);
 
     if (!normalizedSession) {

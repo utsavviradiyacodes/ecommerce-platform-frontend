@@ -1,10 +1,16 @@
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { Navigate, Route, Routes } from "react-router";
 
-import { selectIsAdminSessionInitializationPending } from "./features/auth/authSlice.js";
+import {
+  initializeAdminSessionThunk,
+  selectAdminSessionInitializationError,
+  selectHasAdminSessionInitializationFailed,
+  selectIsAdminSessionInitializationPending,
+} from "./features/auth/authSlice.js";
 
 import AdminLayout from "./layouts/AdminLayout.jsx";
 import AuthLayout from "./layouts/AuthLayout.jsx";
+import AdminSessionInitializationScreen from "./components/common/AdminSessionInitializationScreen.jsx";
 
 import DashboardPage from "./pages/dashboard/DashboardPage.jsx";
 import CategoriesPage from "./pages/categories/CategoriesPage.jsx";
@@ -28,42 +34,68 @@ import UnauthorizedPage from "./pages/errors/UnauthorizedPage.jsx";
 import { ADMIN_PERMISSIONS } from "./constants/adminPermissions.js";
 
 import PublicOnlyRoute from "./routes/PublicOnlyRoute.jsx";
+import AdminPasswordRecoveryRoute from "./routes/AdminPasswordRecoveryRoute.jsx";
 import ProtectedRoute from "./routes/ProtectedRoute.jsx";
 import PermissionRoute from "./routes/PermissionRoute.jsx";
 import SuperAdminRoute from "./routes/SuperAdminRoute.jsx";
 
 import { SidebarProvider } from "./context/SidebarProvider.jsx";
+import { useAdminDocumentTitle } from "./hooks/useAdminDocumentTitle.js";
 
 function App() {
+  const dispatch = useDispatch();
   const isAdminSessionInitializationPending = useSelector(
     selectIsAdminSessionInitializationPending
   );
+  const hasAdminSessionInitializationFailed = useSelector(
+    selectHasAdminSessionInitializationFailed
+  );
+  const adminSessionInitializationError = useSelector(
+    selectAdminSessionInitializationError
+  );
+
+  useAdminDocumentTitle({
+    isSessionInitializationPending: isAdminSessionInitializationPending,
+    hasSessionInitializationFailed: hasAdminSessionInitializationFailed,
+  });
 
   if (isAdminSessionInitializationPending) {
-    return <p>Checking admin session...</p>;
+    return <AdminSessionInitializationScreen isPending />;
+  }
+
+  if (hasAdminSessionInitializationFailed) {
+    return (
+      <AdminSessionInitializationScreen
+        isPending={false}
+        error={adminSessionInitializationError}
+        onRetry={() => dispatch(initializeAdminSessionThunk())}
+      />
+    );
   }
 
   return (
     <Routes>
       {/* Public-only authentication routes */}
       <Route element={<PublicOnlyRoute />}>
-        <Route element={<AuthLayout />}>
-          <Route path="/admin/sign-in" element={<SignInPage />} />
+        <Route element={<AdminPasswordRecoveryRoute />}>
+          <Route element={<AuthLayout />}>
+            <Route path="/admin/sign-in" element={<SignInPage />} />
 
-          <Route
-            path="/admin/forgot-password"
-            element={<ForgotPasswordPage />}
-          />
+            <Route
+              path="/admin/forgot-password"
+              element={<ForgotPasswordPage />}
+            />
 
-          <Route
-            path="/admin/verify-reset-code"
-            element={<VerifyResetCodePage />}
-          />
+            <Route
+              path="/admin/verify-reset-code"
+              element={<VerifyResetCodePage />}
+            />
 
-          <Route
-            path="/admin/create-new-password"
-            element={<CreateNewPasswordPage />}
-          />
+            <Route
+              path="/admin/create-new-password"
+              element={<CreateNewPasswordPage />}
+            />
+          </Route>
         </Route>
       </Route>
 
@@ -141,6 +173,9 @@ function App() {
 
       {/* Redirect the root URL to the admin area */}
       <Route path="/" element={<Navigate to="/admin" replace />} />
+
+      {/* Unknown routes outside the admin namespace */}
+      <Route path="*" element={<NotFoundPage standalone />} />
     </Routes>
   );
 }

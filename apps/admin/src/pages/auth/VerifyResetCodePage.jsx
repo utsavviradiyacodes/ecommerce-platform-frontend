@@ -1,18 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useController, useForm } from "react-hook-form";
 import { useDispatch, useSelector } from "react-redux";
-import { useLocation, useNavigate } from "react-router";
 
 import AuthFormContainer from "../../components/layout/auth/AuthFormContainer.jsx";
-import Label from "../../components/form/Label.jsx";
 import Button from "../../components/ui/button/Button.jsx";
 
 import {
   clearAdminPasswordResetOtpResendFeedback,
   clearAdminPasswordResetOtpVerificationFeedback,
+  consumeAdminPasswordRecoveryNotice,
   resendAdminPasswordResetOtpThunk,
   selectAdminPasswordRecovery,
+  selectAdminPasswordRecoveryNotice,
   selectAdminPasswordResetOtpResendError,
   selectAdminPasswordResetOtpResendSuccessMessage,
   selectAdminPasswordResetOtpVerificationError,
@@ -50,13 +50,16 @@ function formatCountdown(seconds) {
 
 function VerifyResetCodePage() {
   const dispatch = useDispatch();
-  const navigate = useNavigate();
-  const location = useLocation();
 
   const otpInputRefs = useRef([]);
+  const isPageMountedRef = useRef(true);
 
   const { email, userId, resendAvailableAt } = useSelector(
     selectAdminPasswordRecovery
+  );
+
+  const passwordRecoveryNotice = useSelector(
+    selectAdminPasswordRecoveryNotice
   );
 
   const isVerificationPending = useSelector(
@@ -77,20 +80,13 @@ function VerifyResetCodePage() {
     selectAdminPasswordResetOtpResendSuccessMessage
   );
 
-  const [otpDigits, setOtpDigits] = useState(createEmptyOtpDigits);
-
   const [secondsRemaining, setSecondsRemaining] = useState(0);
 
-  const cameFromForgotPassword =
-    location.state?.from === "admin-forgot-password";
+  const [recoveryNotice, setRecoveryNotice] = useState(
+    passwordRecoveryNotice
+  );
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    setValue,
-    formState: { errors },
-  } = useForm({
+  const { control, handleSubmit, reset, setValue } = useForm({
     resolver: zodResolver(verifyResetCodeSchema),
 
     defaultValues: {
@@ -98,20 +94,40 @@ function VerifyResetCodePage() {
     },
   });
 
+  const {
+    field: otpField,
+    fieldState: { error: otpError },
+  } = useController({
+    name: "otp",
+    control,
+  });
+
+  const otpDigits = createEmptyOtpDigits().map(
+    (_, index) => otpField.value?.[index] || ""
+  );
+
   const isBusy = isVerificationPending || isResendPending;
 
   useEffect(() => {
-    if (!email || !userId) {
-      navigate("/admin/forgot-password", {
-        replace: true,
-      });
-    }
-  }, [email, userId, navigate]);
+    isPageMountedRef.current = true;
+
+    return () => {
+      isPageMountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     dispatch(clearAdminPasswordResetOtpResendFeedback());
     dispatch(clearAdminPasswordResetOtpVerificationFeedback());
   }, [dispatch]);
+
+  useEffect(() => {
+    if (!passwordRecoveryNotice) {
+      return;
+    }
+
+    dispatch(consumeAdminPasswordRecoveryNotice());
+  }, [dispatch, passwordRecoveryNotice]);
 
   useEffect(() => {
     const updateCountdown = () => {
@@ -140,8 +156,6 @@ function VerifyResetCodePage() {
   }, [resendAvailableAt]);
 
   function updateOtp(nextOtpDigits, shouldValidate = false) {
-    setOtpDigits(nextOtpDigits);
-
     setValue("otp", nextOtpDigits.join(""), {
       shouldDirty: true,
       shouldValidate,
@@ -150,10 +164,33 @@ function VerifyResetCodePage() {
     if (verificationError) {
       dispatch(clearAdminPasswordResetOtpVerificationFeedback());
     }
+
+    setRecoveryNotice(null);
   }
 
   function handleOtpDigitChange(index, event) {
-    const digit = event.target.value.replace(/\D/g, "").slice(-1);
+    const enteredDigits = event.target.value.replace(/\D/g, "");
+
+    if (enteredDigits.length > 1) {
+      const nextDigits = [...otpDigits];
+      const availableDigits = enteredDigits.slice(0, OTP_LENGTH - index);
+
+      availableDigits.split("").forEach((digit, offset) => {
+        nextDigits[index + offset] = digit;
+      });
+
+      updateOtp(nextDigits, nextDigits.every(Boolean));
+
+      const focusIndex = Math.min(
+        index + availableDigits.length,
+        OTP_LENGTH - 1
+      );
+
+      otpInputRefs.current[focusIndex]?.focus();
+      return;
+    }
+
+    const digit = enteredDigits.slice(-1);
 
     const nextDigits = [...otpDigits];
     nextDigits[index] = digit;
@@ -216,15 +253,6 @@ function VerifyResetCodePage() {
 
   function handleChangeEmail() {
     dispatch(setAdminPasswordRecoveryEmail(email));
-
-    if (cameFromForgotPassword) {
-      navigate(-1);
-      return;
-    }
-
-    navigate("/admin/forgot-password", {
-      replace: true,
-    });
   }
 
   async function handleResendCode() {
@@ -232,44 +260,39 @@ function VerifyResetCodePage() {
       return;
     }
 
+    setRecoveryNotice(null);
+
     const resultAction = await dispatch(
       resendAdminPasswordResetOtpThunk(email)
     );
 
-    if (resendAdminPasswordResetOtpThunk.fulfilled.match(resultAction)) {
+    if (
+      isPageMountedRef.current &&
+      resendAdminPasswordResetOtpThunk.fulfilled.match(resultAction)
+    ) {
       reset({
         otp: "",
       });
-
-      setOtpDigits(createEmptyOtpDigits());
 
       otpInputRefs.current[0]?.focus();
     }
   }
 
-  async function handleVerifyCode(formData) {
-    const resultAction = await dispatch(
+  function handleVerifyCode(formData) {
+    dispatch(
       verifyAdminPasswordResetOtpThunk({
         userId,
         otp: formData.otp,
       })
     );
-
-    if (verifyAdminPasswordResetOtpThunk.fulfilled.match(resultAction)) {
-      navigate("/admin/create-new-password", {
-        replace: true,
-
-        state: {
-          from: "admin-verify-reset-code",
-          verifiedOtp: formData.otp,
-        },
-      });
-    }
   }
 
-  if (!email || !userId) {
-    return null;
-  }
+  const otpDescriptionIds = [
+    otpError ? "verification-code-validation-error" : null,
+    verificationError ? "verification-code-api-error" : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <AuthFormContainer>
@@ -277,7 +300,7 @@ function VerifyResetCodePage() {
         type="button"
         onClick={handleChangeEmail}
         disabled={isBusy}
-        className="mb-7 inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-500 transition-colors hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400 dark:hover:text-gray-300"
+        className="mb-7 inline-flex cursor-pointer items-center gap-2 rounded-sm text-sm font-medium text-gray-500 transition-colors hover:text-gray-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400 dark:hover:text-gray-300 dark:focus-visible:outline-brand-400"
       >
         <span>←</span>
         Change email
@@ -290,68 +313,110 @@ function VerifyResetCodePage() {
 
         <p className="text-sm text-gray-500 dark:text-gray-400">
           Enter the 6-digit verification code sent to{" "}
-          <span className="font-medium text-gray-700 dark:text-gray-300">
+          <span className="break-all font-medium text-gray-700 dark:text-gray-300">
             {email}
           </span>
           .
         </p>
       </div>
 
-      <form onSubmit={handleSubmit(handleVerifyCode)} noValidate>
-        <input type="hidden" {...register("otp")} />
-
+      <form
+        onSubmit={handleSubmit(handleVerifyCode)}
+        noValidate
+      >
         <div className="space-y-6">
-          <div>
-            <Label htmlFor="otp-0">Verification Code</Label>
+          <fieldset aria-describedby={otpDescriptionIds || undefined}>
+            <legend className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
+              Verification Code
+            </legend>
 
-            <div className="grid grid-cols-6 gap-2 sm:gap-3">
+            <div className="grid grid-cols-6 gap-1.5 sm:gap-3">
               {otpDigits.map((digit, index) => (
-                <input
-                  key={index}
-                  ref={(inputElement) => {
-                    otpInputRefs.current[index] = inputElement;
-                  }}
-                  id={`otp-${index}`}
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete={index === 0 ? "one-time-code" : "off"}
-                  maxLength={1}
-                  value={digit}
-                  disabled={isBusy}
-                  onChange={(event) => handleOtpDigitChange(index, event)}
-                  onKeyDown={(event) => handleOtpKeyDown(index, event)}
-                  onPaste={handleOtpPaste}
-                  onFocus={(event) => event.currentTarget.select()}
-                  className={`h-14 w-full rounded-lg border bg-transparent text-center text-xl font-semibold text-gray-800 outline-none transition focus:ring-3 disabled:cursor-not-allowed disabled:opacity-50 dark:text-white/90 ${
-                    errors.otp || verificationError
-                      ? "border-error-500 focus:border-error-500 focus:ring-error-500/10 dark:border-error-500"
-                      : "border-gray-300 focus:border-brand-300 focus:ring-brand-500/10 dark:border-gray-700 dark:focus:border-brand-800"
-                  }`}
-                />
+                <div key={index} className="min-w-0">
+                  <label className="sr-only" htmlFor={`otp-${index}`}>
+                    Verification code digit {index + 1} of {OTP_LENGTH}
+                  </label>
+
+                  <input
+                    ref={(inputElement) => {
+                      otpInputRefs.current[index] = inputElement;
+
+                      if (index === 0) {
+                        otpField.ref(inputElement);
+                      }
+                    }}
+                    id={`otp-${index}`}
+                    name={`otp-digit-${index + 1}`}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    autoComplete={index === 0 ? "one-time-code" : "off"}
+                    maxLength={OTP_LENGTH}
+                    value={digit}
+                    disabled={isBusy}
+                    aria-invalid={
+                      Boolean(otpError || verificationError) || undefined
+                    }
+                    aria-describedby={otpDescriptionIds || undefined}
+                    onChange={(event) => handleOtpDigitChange(index, event)}
+                    onKeyDown={(event) => handleOtpKeyDown(index, event)}
+                    onPaste={handleOtpPaste}
+                    onBlur={otpField.onBlur}
+                    onFocus={(event) => event.currentTarget.select()}
+                    className={`h-14 w-full rounded-lg border bg-transparent text-center text-xl font-semibold text-gray-800 transition focus-visible:outline-hidden focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50 dark:text-white/90 ${
+                      otpError || verificationError
+                        ? "border-error-500 focus-visible:border-error-500 focus-visible:ring-error-500/30 dark:border-error-500 dark:focus-visible:border-error-400 dark:focus-visible:ring-error-400/30"
+                        : "border-gray-300 focus-visible:border-brand-400 focus-visible:ring-brand-500/30 dark:border-gray-700 dark:focus-visible:border-brand-400 dark:focus-visible:ring-brand-400/30"
+                    }`}
+                  />
+                </div>
               ))}
             </div>
 
-            {errors.otp?.message && (
-              <p className="mt-1.5 text-xs text-error-500">
-                {errors.otp.message}
+            {otpError?.message && (
+              <p
+                id="verification-code-validation-error"
+                className="mt-1.5 text-xs text-error-600 dark:text-error-400"
+              >
+                {otpError.message}
               </p>
             )}
-          </div>
+          </fieldset>
+
+          {recoveryNotice && (
+            <p
+              role="alert"
+              className="rounded-lg border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400"
+            >
+              {recoveryNotice}
+            </p>
+          )}
 
           {verificationError && (
-            <p className="rounded-lg border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-600 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400">
+            <p
+              id="verification-code-api-error"
+              role="alert"
+              className="rounded-lg border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400"
+            >
               {verificationError}
             </p>
           )}
 
           {resendError && (
-            <p className="rounded-lg border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-600 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400">
+            <p
+              role="alert"
+              className="rounded-lg border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400"
+            >
               {resendError}
             </p>
           )}
 
           {resendSuccessMessage && (
-            <p className="rounded-lg border border-success-200 bg-success-50 px-4 py-3 text-sm text-success-600 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400">
+            <p
+              role="status"
+              aria-live="polite"
+              className="rounded-lg border border-success-200 bg-success-50 px-4 py-3 text-sm text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400"
+            >
               {resendSuccessMessage}
             </p>
           )}
@@ -362,14 +427,14 @@ function VerifyResetCodePage() {
         </div>
       </form>
 
-      <div className="mt-5 flex min-h-5 items-center justify-center gap-1 text-sm text-gray-500 dark:text-gray-400">
-        <span className="shrink-0">Didn’t receive the code?</span>
+      <div className="mt-5 flex min-h-5 flex-wrap items-center justify-center gap-x-1 gap-y-1 text-center text-sm text-gray-500 dark:text-gray-400">
+        <span>Didn’t receive the code?</span>
 
         <button
           type="button"
           onClick={handleResendCode}
           disabled={secondsRemaining > 0 || isBusy}
-          className="w-36 shrink-0 cursor-pointer text-left font-medium text-brand-500 hover:text-brand-600 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-brand-400 dark:hover:text-brand-300 dark:disabled:text-gray-600"
+          className="min-w-36 cursor-pointer rounded-sm text-center font-medium text-brand-500 hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-brand-400 dark:hover:text-brand-300 dark:focus-visible:outline-brand-400 dark:disabled:text-gray-600"
         >
           {isResendPending
             ? "Resending..."

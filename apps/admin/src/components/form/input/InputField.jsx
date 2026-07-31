@@ -6,34 +6,54 @@ function InputField({
   hint = "",
   ...inputProps
 }) {
-  let inputClasses = `h-11 w-full appearance-none rounded-lg border px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 sellora-input ${className}`;
+  const {
+    id,
+    "aria-describedby": providedAriaDescribedBy,
+    "aria-invalid": providedAriaInvalid,
+    ...remainingInputProps
+  } = inputProps;
+
+  const hintId = hint && id ? `${id}-hint` : undefined;
+  const ariaDescribedBy = [providedAriaDescribedBy, hintId]
+    .filter(Boolean)
+    .join(" ");
+
+  let inputClasses = `h-11 w-full appearance-none rounded-lg border px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 focus-visible:outline-hidden focus-visible:ring-3 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-gray-500 sellora-input ${className}`;
 
   if (disabled) {
     inputClasses +=
       " cursor-not-allowed border-gray-300 bg-gray-100 text-gray-500 opacity-40 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400";
   } else if (error) {
     inputClasses +=
-      " border-error-500 focus:border-error-300 focus:ring-error-500/20 dark:border-error-500 dark:text-error-400 dark:focus:border-error-800";
+      " border-error-500 focus-visible:border-error-500 focus-visible:ring-error-500/30 dark:border-error-500 dark:text-error-400 dark:focus-visible:border-error-400 dark:focus-visible:ring-error-400/30";
   } else if (success) {
     inputClasses +=
-      " border-success-500 focus:border-success-300 focus:ring-success-500/20 dark:border-success-500 dark:text-success-400 dark:focus:border-success-800";
+      " border-success-500 focus-visible:border-success-500 focus-visible:ring-success-500/30 dark:border-success-500 dark:text-success-400 dark:focus-visible:border-success-400 dark:focus-visible:ring-success-400/30";
   } else {
     inputClasses +=
-      " border-gray-300 bg-transparent text-gray-800 focus:border-brand-300 focus:ring-brand-500/20 dark:border-gray-700 dark:text-white/90 dark:focus:border-brand-800";
+      " border-gray-300 bg-transparent text-gray-800 focus-visible:border-brand-400 focus-visible:ring-brand-500/30 dark:border-gray-700 dark:text-white/90 dark:focus-visible:border-brand-400 dark:focus-visible:ring-brand-400/30";
   }
 
   return (
     <div className="relative">
-      <input {...inputProps} disabled={disabled} className={inputClasses} />
+      <input
+        {...remainingInputProps}
+        id={id}
+        disabled={disabled}
+        aria-describedby={ariaDescribedBy || undefined}
+        aria-invalid={providedAriaInvalid ?? (error || undefined)}
+        className={inputClasses}
+      />
 
       {hint && (
         <p
+          id={hintId}
           className={`mt-1.5 text-xs ${
             error
-              ? "text-error-500"
+              ? "text-error-600 dark:text-error-400"
               : success
-                ? "text-success-500"
-                : "text-gray-500"
+                ? "text-success-700 dark:text-success-400"
+                : "text-gray-500 dark:text-gray-400"
           }`}
         >
           {hint}

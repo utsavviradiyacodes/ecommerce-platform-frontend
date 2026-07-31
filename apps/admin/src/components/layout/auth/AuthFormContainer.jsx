@@ -1,7 +1,7 @@
 function AuthFormContainer({ children }) {
   return (
-    <div className="flex flex-1 flex-col justify-center">
-      <div className="mx-auto w-full max-w-lg">{children}</div>
+    <div className="flex w-full flex-1 flex-col px-6 py-10 sm:px-8 lg:px-10 xl:px-16">
+      <div className="my-auto w-full max-w-lg self-center">{children}</div>
     </div>
   );
 }

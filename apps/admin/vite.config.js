@@ -13,4 +13,13 @@ export default defineConfig({
       },
     }),
   ],
+
+  server: {
+    proxy: {
+      "/api": {
+        target: "https://sellora-ecommerce-backend-live.onrender.com",
+        changeOrigin: true,
+      },
+    },
+  },
 });

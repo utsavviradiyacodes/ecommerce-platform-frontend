@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useDispatch, useSelector } from "react-redux";
-import { useLocation, useNavigate } from "react-router";
+import { useNavigate } from "react-router";
 
 import AuthFormContainer from "../../components/layout/auth/AuthFormContainer.jsx";
 import Label from "../../components/form/Label.jsx";
@@ -23,7 +23,6 @@ import { forgotPasswordSchema } from "../../schemas/auth/forgotPasswordSchema.js
 function ForgotPasswordPage() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const location = useLocation();
 
   const { email: savedEmail } = useSelector(selectAdminPasswordRecovery);
 
@@ -34,8 +33,6 @@ function ForgotPasswordPage() {
   const passwordResetOtpRequestError = useSelector(
     selectAdminPasswordResetOtpRequestError
   );
-
-  const cameFromAdminSignIn = location.state?.from === "admin-sign-in";
 
   const {
     register,
@@ -55,32 +52,21 @@ function ForgotPasswordPage() {
   }, [dispatch]);
 
   function handleReturnToSignIn() {
+    if (isPasswordResetOtpRequestPending) {
+      return;
+    }
+
     const currentEmail = getValues("email").trim();
 
     dispatch(setAdminPasswordRecoveryEmail(currentEmail));
-
-    if (cameFromAdminSignIn) {
-      navigate(-1);
-      return;
-    }
 
     navigate("/admin/sign-in", {
       replace: true,
     });
   }
 
-  async function handleForgotPasswordSubmit(formData) {
-    const resultAction = await dispatch(
-      requestAdminPasswordResetThunk(formData.email)
-    );
-
-    if (requestAdminPasswordResetThunk.fulfilled.match(resultAction)) {
-      navigate("/admin/verify-reset-code", {
-        state: {
-          from: "admin-forgot-password",
-        },
-      });
-    }
+  function handleForgotPasswordSubmit(formData) {
+    dispatch(requestAdminPasswordResetThunk(formData.email));
   }
 
   return (
@@ -88,7 +74,8 @@ function ForgotPasswordPage() {
       <button
         type="button"
         onClick={handleReturnToSignIn}
-        className="mb-7 inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+        disabled={isPasswordResetOtpRequestPending}
+        className="mb-7 inline-flex cursor-pointer items-center gap-2 rounded-sm text-sm font-medium text-gray-500 transition-colors hover:text-gray-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400 dark:hover:text-gray-300 dark:focus-visible:outline-brand-400"
       >
         <span>←</span>
         Return to Sign In
@@ -105,7 +92,13 @@ function ForgotPasswordPage() {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit(handleForgotPasswordSubmit)} noValidate>
+      <form
+        onSubmit={handleSubmit(handleForgotPasswordSubmit)}
+        onChangeCapture={() =>
+          dispatch(clearAdminPasswordResetOtpRequestFeedback())
+        }
+        noValidate
+      >
         <div className="space-y-6">
           <div>
             <Label htmlFor="email">
@@ -125,7 +118,10 @@ function ForgotPasswordPage() {
           </div>
 
           {passwordResetOtpRequestError && (
-            <p className="rounded-lg border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-600 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400">
+            <p
+              role="alert"
+              className="rounded-lg border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400"
+            >
               {passwordResetOtpRequestError}
             </p>
           )}

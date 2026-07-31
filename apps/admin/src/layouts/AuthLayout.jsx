@@ -5,15 +5,15 @@ import AuthGridShape from "../components/layout/auth/AuthGridShape.jsx";
 
 function AuthLayout() {
   return (
-    <div className="relative h-dvh overflow-hidden bg-white p-6 dark:bg-gray-900 sm:p-0">
-      <div className="relative flex h-full w-full flex-col dark:bg-gray-900 lg:flex-row">
+    <div className="relative min-h-dvh overflow-x-hidden bg-white dark:bg-gray-900">
+      <div className="relative flex min-h-dvh w-full flex-col dark:bg-gray-900 lg:flex-row">
         {/* Authentication page content */}
-        <main className="flex h-full w-full flex-col lg:w-1/2">
+        <main className="flex min-h-dvh w-full flex-col lg:w-1/2">
           <Outlet />
         </main>
 
         {/* Sellora brand panel */}
-        <aside className="hidden h-full w-full items-center bg-brand-950 lg:grid lg:w-1/2 dark:bg-white/5">
+        <aside className="hidden w-full items-center bg-brand-950 lg:sticky lg:top-0 lg:grid lg:h-dvh lg:w-1/2 dark:bg-white/5">
           <div className="relative z-1 flex items-center justify-center">
             <AuthGridShape />
 
