@@ -1,24 +1,17 @@
+import error404Image from "../../assets/images/errors/404.svg";
+import error404DarkImage from "../../assets/images/errors/404-dark.svg";
+import ErrorPageContent from "../../components/errors/ErrorPageContent.jsx";
+
 function NotFoundPage({ standalone = false }) {
   return (
-    <main
-      className={`flex items-center justify-center bg-gray-50 px-4 py-12 text-center dark:bg-gray-900 ${
-        standalone ? "min-h-dvh" : "min-h-[calc(100dvh-8rem)]"
-      }`}
-    >
-      <div className="max-w-md">
-        <p className="text-7xl font-semibold text-brand-500 dark:text-brand-400">
-          404
-        </p>
-
-        <h1 className="mt-5 text-2xl font-semibold text-gray-900 sm:text-3xl dark:text-white">
-          Page not found
-        </h1>
-
-        <p className="mt-3 text-sm leading-6 text-gray-500 sm:text-base dark:text-gray-400">
-          The page you requested could not be found.
-        </p>
-      </div>
-    </main>
+    <ErrorPageContent
+      code="404"
+      message="We can’t seem to find the page you are looking for!"
+      standalone={standalone}
+      lightImage={error404Image}
+      darkImage={error404DarkImage}
+      illustrationAlt="404 page not found"
+    />
   );
 }
 
