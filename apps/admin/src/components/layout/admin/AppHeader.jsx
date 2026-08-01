@@ -137,6 +137,9 @@ function AppHeader() {
                 </span>
 
                 <input
+                  id="admin-global-search"
+                  name="adminGlobalSearch"
+                  autoComplete="off"
                   ref={searchInputRef}
                   type="text"
                   placeholder="Search or type command..."
