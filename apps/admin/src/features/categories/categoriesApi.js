@@ -23,7 +23,9 @@ export async function addCategory({ name, image }) {
 export async function updateCategory({ categoryId, name, image }) {
   const formData = new FormData();
 
-  formData.append("name", name);
+  if (name !== undefined) {
+    formData.append("name", name);
+  }
 
   if (image) {
     formData.append("image", image);
@@ -32,6 +34,14 @@ export async function updateCategory({ categoryId, name, image }) {
   const response = await axiosInstance.post(
     `/category/updateCategory/${categoryId}`,
     formData
+  );
+
+  return response.data;
+}
+
+export async function deleteCategory(categoryId) {
+  const response = await axiosInstance.delete(
+    `/category/deleteCategory/${categoryId}`
   );
 
   return response.data;

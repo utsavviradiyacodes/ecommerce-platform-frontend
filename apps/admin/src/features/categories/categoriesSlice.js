@@ -2,6 +2,7 @@ import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 
 import {
   addCategory,
+  deleteCategory,
   getAllCategories,
   updateCategory,
 } from "./categoriesApi.js";
@@ -28,6 +29,7 @@ const initialState = {
     list: createRequestState(),
     create: createRequestState(),
     update: createRequestState(),
+    delete: createRequestState(),
   },
 };
 
@@ -107,6 +109,31 @@ export const updateCategoryThunk = createAsyncThunk(
   }
 );
 
+export const deleteCategoryThunk = createAsyncThunk(
+  "categories/deleteCategory",
+  async (categoryId, { rejectWithValue }) => {
+    try {
+      const response = await deleteCategory(categoryId);
+
+      return response;
+    } catch (error) {
+      return rejectWithValue(
+        getApiErrorMessage(
+          error,
+          "Unable to delete category. Please try again."
+        )
+      );
+    }
+  },
+  {
+    condition: (_, { getState }) => {
+      const deleteStatus = getState().categories.requests.delete.status;
+
+      return deleteStatus !== REQUEST_STATUS.PENDING;
+    },
+  }
+);
+
 const categoriesSlice = createSlice({
   name: "categories",
   initialState,
@@ -120,9 +147,14 @@ const categoriesSlice = createSlice({
       clearRequestFeedback(state.requests.update);
     },
 
+    clearDeleteCategoryRequestFeedback(state) {
+      clearRequestFeedback(state.requests.delete);
+    },
+
     resetCategoryMutationRequestStates(state) {
       resetRequestState(state.requests.create);
       resetRequestState(state.requests.update);
+      resetRequestState(state.requests.delete);
     },
   },
 
@@ -152,6 +184,15 @@ const categoriesSlice = createSlice({
 
     selectCategoryUpdateSuccessMessage: (sliceState) =>
       sliceState.requests.update.successMessage,
+
+    selectIsCategoryDeletePending: (sliceState) =>
+      sliceState.requests.delete.status === REQUEST_STATUS.PENDING,
+
+    selectCategoryDeleteError: (sliceState) =>
+      sliceState.requests.delete.error,
+
+    selectCategoryDeleteSuccessMessage: (sliceState) =>
+      sliceState.requests.delete.successMessage,
   },
 
   extraReducers: (builder) => {
@@ -257,12 +298,46 @@ const categoriesSlice = createSlice({
             "Unable to update category. Please try again."
           )
         );
+      })
+
+      // -------------------- Delete Category --------------------
+
+      .addCase(deleteCategoryThunk.pending, (state, action) => {
+        setRequestPending(state.requests.delete, action.meta.requestId);
+      })
+      .addCase(deleteCategoryThunk.fulfilled, (state, action) => {
+        if (
+          !isRequestStateOwnedBy(state.requests.delete, action.meta.requestId)
+        ) {
+          return;
+        }
+
+        setRequestSucceeded(
+          state.requests.delete,
+          action.payload.message || "Category deleted successfully"
+        );
+      })
+      .addCase(deleteCategoryThunk.rejected, (state, action) => {
+        if (
+          !isRequestStateOwnedBy(state.requests.delete, action.meta.requestId)
+        ) {
+          return;
+        }
+
+        setRequestFailed(
+          state.requests.delete,
+          getRejectedActionErrorMessage(
+            action,
+            "Unable to delete category. Please try again."
+          )
+        );
       });
   },
 });
 
 export const {
   clearCreateCategoryRequestFeedback,
+  clearDeleteCategoryRequestFeedback,
   clearUpdateCategoryRequestFeedback,
   resetCategoryMutationRequestStates,
 } = categoriesSlice.actions;
@@ -278,6 +353,9 @@ export const {
   selectIsCategoryUpdatePending,
   selectCategoryUpdateError,
   selectCategoryUpdateSuccessMessage,
+  selectIsCategoryDeletePending,
+  selectCategoryDeleteError,
+  selectCategoryDeleteSuccessMessage,
 } = categoriesSlice.selectors;
 
 export default categoriesSlice.reducer;

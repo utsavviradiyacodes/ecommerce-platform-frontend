@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { useWatch } from "react-hook-form";
 
 import Button from "../ui/button/Button.jsx";
 import FileInput from "../form/input/FileInput.jsx";
@@ -13,14 +14,19 @@ function CategoryFormModal({
   onSubmit = () => {},
   nameInputProps = {},
   imageInputProps = {},
+  control,
+  originalCategory = null,
   previewUrl = "",
   nameError = "",
   imageError = "",
   submitError = "",
   isSubmitting = false,
+  isSubmitDisabled = false,
 }) {
   const [selectedPreviewUrl, setSelectedPreviewUrl] = useState("");
+  const [hasReplacementImage, setHasReplacementImage] = useState(false);
   const objectUrlRef = useRef("");
+  const submitErrorRef = useRef(null);
 
   const isEditMode = mode === "edit";
 
@@ -37,6 +43,19 @@ function CategoryFormModal({
 
   const displayedPreviewUrl = selectedPreviewUrl || previewUrl;
 
+  const currentName = useWatch({
+    control,
+    name: "name",
+  });
+
+  const hasMeaningfulChanges =
+    !isEditMode ||
+    (typeof currentName === "string" ? currentName.trim() : "") !==
+      (typeof originalCategory?.name === "string"
+        ? originalCategory.name.trim()
+        : "") ||
+    hasReplacementImage;
+
   const { onChange: forwardedImageChange, ...remainingImageInputProps } =
     imageInputProps;
 
@@ -47,10 +66,13 @@ function CategoryFormModal({
     }
 
     setSelectedPreviewUrl("");
+    setHasReplacementImage(false);
   }
 
   function handleImageChange(event) {
     const selectedFile = event.target.files?.[0] ?? null;
+
+    setHasReplacementImage(Boolean(selectedFile));
 
     if (objectUrlRef.current) {
       URL.revokeObjectURL(objectUrlRef.current);
@@ -86,6 +108,20 @@ function CategoryFormModal({
     };
   }, []);
 
+  useEffect(() => {
+    if (!submitError) {
+      return undefined;
+    }
+
+    const errorFrameId = window.requestAnimationFrame(() => {
+      submitErrorRef.current?.scrollIntoView({ block: "nearest" });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(errorFrameId);
+    };
+  }, [submitError]);
+
   return (
     <Modal
       isOpen={isOpen}
@@ -94,8 +130,12 @@ function CategoryFormModal({
       ariaLabelledBy={modalTitleId}
       ariaDescribedBy={modalDescriptionId}
     >
-      <form onSubmit={onSubmit} noValidate className="rounded-3xl">
-        <div className="px-5 pt-6 pr-14 pb-4 sm:px-8 sm:pt-8 sm:pr-20 sm:pb-5">
+      <form
+        onSubmit={onSubmit}
+        noValidate
+        className="flex max-h-[calc(100dvh-1.5rem)] flex-col overflow-hidden rounded-3xl sm:max-h-[calc(100dvh-3rem)]"
+      >
+        <div className="shrink-0 px-5 pt-6 pr-14 pb-4 sm:px-8 sm:pt-8 sm:pr-20 sm:pb-5">
           <h3
             id={modalTitleId}
             className="text-xl font-semibold text-gray-800 dark:text-white/90"
@@ -111,9 +151,13 @@ function CategoryFormModal({
           </p>
         </div>
 
-        <div className="border-y border-gray-100 px-5 py-4 sm:px-8 sm:py-5 dark:border-gray-800">
+        <div className="min-h-0 overflow-x-hidden overflow-y-auto overscroll-contain border-y border-gray-100 px-5 py-4 sm:px-8 sm:py-5 dark:border-gray-800">
           {submitError && (
-            <div className="mb-5 rounded-lg border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400">
+            <div
+              ref={submitErrorRef}
+              role="alert"
+              className="mb-5 min-w-0 break-words whitespace-pre-wrap rounded-lg border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400"
+            >
               {submitError}
             </div>
           )}
@@ -136,13 +180,13 @@ function CategoryFormModal({
             />
           </div>
 
-          <div className="mt-5 grid gap-4 md:grid-cols-2 md:items-start">
-            <div className="order-2 md:order-1">
+          <div className="mt-5 grid gap-4 md:grid-cols-2 md:items-stretch">
+            <div className="order-2 flex min-h-36 flex-col md:order-1 md:h-full">
               <p className="mb-1.5 text-sm font-medium text-gray-700 dark:text-gray-400">
                 Image preview
               </p>
 
-              <div className="flex h-28 items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 p-3 sm:h-36 sm:p-4 dark:border-gray-700 dark:bg-white/2">
+              <div className="flex min-h-28 flex-1 items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 p-3 sm:min-h-36 sm:p-4 dark:border-gray-700 dark:bg-white/2">
                 {displayedPreviewUrl ? (
                   <div className="flex w-full items-center justify-center">
                     <div className="h-20 w-20 overflow-hidden rounded-xl border border-gray-200 bg-white sm:h-24 sm:w-24 dark:border-gray-800 dark:bg-gray-900">
@@ -209,7 +253,7 @@ function CategoryFormModal({
           </div>
         </div>
 
-        <div className="flex flex-col-reverse gap-3 px-5 py-4 sm:flex-row sm:justify-end sm:px-8 sm:py-5">
+        <div className="flex shrink-0 flex-col-reverse gap-3 px-5 py-4 sm:flex-row sm:justify-end sm:px-8 sm:py-5">
           <Button
             type="button"
             variant="outline"
@@ -222,7 +266,11 @@ function CategoryFormModal({
 
           <Button
             type="submit"
-            disabled={isSubmitting}
+            disabled={
+              isSubmitting ||
+              isSubmitDisabled ||
+              (isEditMode && !hasMeaningfulChanges)
+            }
             className="w-full sm:w-auto"
           >
             {isSubmitting ? "Saving..." : submitLabel}

@@ -8,6 +8,8 @@ import {
 
 import Pagination from "../ui/pagination/Pagination.jsx";
 
+import { PencilIcon, TrashIcon } from "../../icons/index.js";
+
 const dateFormatter = new Intl.DateTimeFormat("en-IN", {
   day: "2-digit",
   month: "short",
@@ -15,6 +17,10 @@ const dateFormatter = new Intl.DateTimeFormat("en-IN", {
 });
 
 function formatCategoryDate(value) {
+  if (value === null || value === undefined || value === "") {
+    return "—";
+  }
+
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
@@ -44,7 +50,10 @@ function CategoryTableSkeleton() {
       </TableCell>
 
       <TableCell className="px-5 py-4 text-right sm:px-6">
-        <div className="ml-auto h-8 w-14 animate-pulse rounded-lg bg-gray-200 dark:bg-gray-800" />
+        <div className="ml-auto flex justify-end gap-2">
+          <div className="size-9 animate-pulse rounded-lg bg-gray-200 dark:bg-gray-800" />
+          <div className="size-9 animate-pulse rounded-lg bg-gray-200 dark:bg-gray-800" />
+        </div>
       </TableCell>
     </TableRow>
   ));
@@ -55,6 +64,7 @@ function CategoriesTable({
   isLoading = false,
   hasSearchQuery = false,
   onEdit = () => {},
+  onDelete = () => {},
   currentPage = 1,
   totalPages = 1,
   totalItems = 0,
@@ -64,8 +74,8 @@ function CategoriesTable({
   const hasCategories = categories.length > 0;
 
   return (
-    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/5 dark:bg-white/3">
-      <div className="max-w-full overflow-x-auto">
+    <div className="w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/5 dark:bg-white/3">
+      <div className="custom-scrollbar max-w-full overflow-x-auto overflow-y-hidden">
         <Table>
           <TableHeader className="border-b border-gray-100 dark:border-white/5">
             <TableRow>
@@ -165,13 +175,31 @@ function CategoriesTable({
                   </TableCell>
 
                   <TableCell className="px-5 py-4 text-right sm:px-6">
-                    <button
-                      type="button"
-                      onClick={() => onEdit(category)}
-                      className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-theme-xs transition hover:bg-gray-50 hover:text-gray-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
-                    >
-                      Edit
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        title={`Edit ${category.name}`}
+                        onClick={() => onEdit(category)}
+                        className="relative inline-flex size-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 shadow-theme-xs transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:border-brand-700 dark:hover:bg-brand-500/10 dark:hover:text-brand-400"
+                      >
+                        <PencilIcon className="size-5" />
+
+                        <span className="sr-only">Edit {category.name}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        title={`Delete ${category.name}`}
+                        onClick={() => onDelete(category)}
+                        className="relative inline-flex size-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 shadow-theme-xs transition hover:border-error-300 hover:bg-error-50 hover:text-error-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-error-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:border-error-800 dark:hover:bg-error-500/10 dark:hover:text-error-400"
+                      >
+                        <TrashIcon className="size-5" />
+
+                        <span className="sr-only">
+                          Delete {category.name}
+                        </span>
+                      </button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
