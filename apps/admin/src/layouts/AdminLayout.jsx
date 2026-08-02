@@ -11,19 +11,19 @@ function AdminLayout() {
   const sidebarIsWide = isExpanded || isHovered;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 xl:flex">
+    <div className="min-h-screen min-w-0 bg-gray-50 dark:bg-gray-900 xl:flex">
       <AppSidebar />
       <Backdrop />
 
       <div
-        className={`flex min-h-screen flex-1 flex-col transition-all duration-300 ease-in-out ${
+        className={`flex min-h-screen min-w-0 flex-1 flex-col transition-all duration-300 ease-in-out ${
           sidebarIsWide ? "lg:ml-72.5" : "lg:ml-22.5"
         }`}
       >
         <AppHeader />
 
-        <main className="flex-1">
-          <div className="mx-auto max-w-(--breakpoint-2xl) p-4 md:p-6">
+        <main className="min-w-0 flex-1">
+          <div className="mx-auto w-full min-w-0 max-w-(--breakpoint-2xl) p-4 md:p-6">
             <Outlet />
           </div>
         </main>

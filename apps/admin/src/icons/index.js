@@ -8,6 +8,9 @@ import EyeIcon from "./ui/eye.svg?react";
 import EyeCloseIcon from "./ui/eye-close.svg?react";
 import GoogleIcon from "./social/google.svg?react";
 import XIcon from "./social/x.svg?react";
+import PencilIcon from "./ui/pencil.svg?react";
+import TrashIcon from "./ui/trash.svg?react";
+import SearchIcon from "./ui/search.svg?react";
 
 export {
   GridIcon,
@@ -20,4 +23,7 @@ export {
   EyeCloseIcon,
   GoogleIcon,
   XIcon,
+  PencilIcon,
+  TrashIcon,
+  SearchIcon,
 };

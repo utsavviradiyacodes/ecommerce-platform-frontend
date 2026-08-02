@@ -1,0 +1,261 @@
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHeader,
+  TableRow,
+} from "../ui/table/Table.jsx";
+import Pagination from "../ui/pagination/Pagination.jsx";
+
+import { PencilIcon, TrashIcon } from "../../icons/index.js";
+import { getSubcategoryCategoryName } from "../../features/subcategories/subcategoryPageUtils.js";
+
+const dateFormatter = new Intl.DateTimeFormat("en-IN", {
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+});
+
+function formatSubcategoryDate(value) {
+  if (value === null || value === undefined || value === "") {
+    return "—";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
+
+  return dateFormatter.format(date);
+}
+
+function SubcategoryTableSkeleton() {
+  return Array.from({ length: 5 }, (_, index) => (
+    <TableRow key={index}>
+      <TableCell className="px-5 py-4 sm:px-6">
+        <div className="flex items-center gap-3">
+          <div className="h-12 w-12 animate-pulse rounded-lg bg-gray-200 dark:bg-gray-800" />
+
+          <div className="h-4 w-32 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
+        </div>
+      </TableCell>
+
+      <TableCell className="px-4 py-4">
+        <div className="h-4 w-28 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
+      </TableCell>
+
+      <TableCell className="px-4 py-4">
+        <div className="h-4 w-24 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
+      </TableCell>
+
+      <TableCell className="px-4 py-4">
+        <div className="h-4 w-24 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
+      </TableCell>
+
+      <TableCell className="px-5 py-4 text-right sm:px-6">
+        <div className="ml-auto flex justify-end gap-2">
+          <div className="size-9 animate-pulse rounded-lg bg-gray-200 dark:bg-gray-800" />
+          <div className="size-9 animate-pulse rounded-lg bg-gray-200 dark:bg-gray-800" />
+        </div>
+      </TableCell>
+    </TableRow>
+  ));
+}
+
+function SubcategoriesTable({
+  subcategories = [],
+  isLoading = false,
+  hasActiveFilters = false,
+  onEdit = () => {},
+  onDelete = () => {},
+  currentPage = 1,
+  totalPages = 1,
+  totalItems = 0,
+  pageSize = 5,
+  onPageChange = () => {},
+}) {
+  const hasSubcategories = subcategories.length > 0;
+
+  return (
+    <div className="w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/5 dark:bg-white/3">
+      <div className="custom-scrollbar max-w-full overflow-x-auto overflow-y-hidden">
+        <Table>
+          <TableHeader className="border-b border-gray-100 dark:border-white/5">
+            <TableRow>
+              <TableCell
+                isHeader
+                scope="col"
+                className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 sm:px-6 dark:text-gray-400"
+              >
+                Subcategory
+              </TableCell>
+
+              <TableCell
+                isHeader
+                scope="col"
+                className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
+              >
+                Parent category
+              </TableCell>
+
+              <TableCell
+                isHeader
+                scope="col"
+                className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
+              >
+                Created
+              </TableCell>
+
+              <TableCell
+                isHeader
+                scope="col"
+                className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
+              >
+                Last updated
+              </TableCell>
+
+              <TableCell
+                isHeader
+                scope="col"
+                className="px-5 py-3 text-right text-theme-xs font-medium text-gray-500 sm:px-6 dark:text-gray-400"
+              >
+                Actions
+              </TableCell>
+            </TableRow>
+          </TableHeader>
+
+          <TableBody className="divide-y divide-gray-100 dark:divide-white/5">
+            {isLoading && <SubcategoryTableSkeleton />}
+
+            {!isLoading &&
+              hasSubcategories &&
+              subcategories.map((subcategory) => (
+                <TableRow
+                  key={subcategory._id}
+                  className="transition-colors hover:bg-gray-50 dark:hover:bg-white/2"
+                >
+                  <TableCell className="px-5 py-4 sm:px-6">
+                    <div className="flex min-w-56 items-center gap-3">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-100 dark:border-gray-800 dark:bg-gray-800">
+                        {subcategory.image ? (
+                          <img
+                            src={subcategory.image}
+                            alt={subcategory.name}
+                            width="48"
+                            height="48"
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <>
+                            <span className="sr-only">
+                              No image available for {subcategory.name}
+                            </span>
+
+                            <svg
+                              width="22"
+                              height="22"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              className="text-gray-400 dark:text-gray-500"
+                            >
+                              <path
+                                d="M4 16.5L8.25 12.25C8.66421 11.8358 9.33579 11.8358 9.75 12.25L12 14.5L14.25 12.25C14.6642 11.8358 15.3358 11.8358 15.75 12.25L20 16.5M8.5 8.5H8.51M5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21Z"
+                                stroke="currentColor"
+                                strokeWidth="1.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          </>
+                        )}
+                      </div>
+
+                      <p className="font-medium text-gray-800 dark:text-white/90">
+                        {subcategory.name}
+                      </p>
+                    </div>
+                  </TableCell>
+
+                  <TableCell className="min-w-40 px-4 py-4 text-theme-sm text-gray-500 dark:text-gray-400">
+                    {getSubcategoryCategoryName(
+                      subcategory,
+                      "Unknown category"
+                    )}
+                  </TableCell>
+
+                  <TableCell className="whitespace-nowrap px-4 py-4 text-theme-sm text-gray-500 dark:text-gray-400">
+                    {formatSubcategoryDate(subcategory.createdAt)}
+                  </TableCell>
+
+                  <TableCell className="whitespace-nowrap px-4 py-4 text-theme-sm text-gray-500 dark:text-gray-400">
+                    {formatSubcategoryDate(subcategory.updatedAt)}
+                  </TableCell>
+
+                  <TableCell className="px-5 py-4 text-right sm:px-6">
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        title={`Edit ${subcategory.name}`}
+                        onClick={() => onEdit(subcategory)}
+                        className="relative inline-flex size-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 shadow-theme-xs transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:border-brand-700 dark:hover:bg-brand-500/10 dark:hover:text-brand-400"
+                      >
+                        <PencilIcon className="size-5" />
+
+                        <span className="sr-only">Edit {subcategory.name}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        title={`Delete ${subcategory.name}`}
+                        onClick={() => onDelete(subcategory)}
+                        className="relative inline-flex size-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 shadow-theme-xs transition hover:border-error-300 hover:bg-error-50 hover:text-error-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-error-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:border-error-800 dark:hover:bg-error-500/10 dark:hover:text-error-400"
+                      >
+                        <TrashIcon className="size-5" />
+
+                        <span className="sr-only">
+                          Delete {subcategory.name}
+                        </span>
+                      </button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+
+            {!isLoading && !hasSubcategories && (
+              <TableRow>
+                <TableCell colSpan={5} className="px-6 py-14 text-center">
+                  <div className="mx-auto max-w-sm">
+                    <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                      {hasActiveFilters
+                        ? "No matching subcategories"
+                        : "No subcategories found"}
+                    </p>
+
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                      {hasActiveFilters
+                        ? "Try changing the search term or parent-category filter."
+                        : "Subcategories will appear here after they are added."}
+                    </p>
+                  </div>
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      {!isLoading && totalItems > 0 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={onPageChange}
+        />
+      )}
+    </div>
+  );
+}
+
+export default SubcategoriesTable;

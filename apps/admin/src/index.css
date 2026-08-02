@@ -256,6 +256,43 @@ layer(base);
   --z-index-999999: 999999;
 }
 
+:root {
+  --admin-page-background: var(--color-gray-50);
+  --auth-content-background: var(--color-white);
+  --auth-brand-panel-background: var(--color-brand-950);
+  --document-gutter-background: var(--admin-page-background);
+  --modal-gutter-background: color-mix(
+    in srgb,
+    var(--color-gray-400) 50%,
+    var(--document-gutter-background)
+  );
+  --scrollbar-thumb-color: var(--color-gray-300);
+  --scrollbar-thumb-hover-color: var(--color-gray-400);
+  --scrollbar-track-color: transparent;
+}
+
+:root.dark {
+  --admin-page-background: var(--color-gray-900);
+  --auth-content-background: var(--color-gray-900);
+  --auth-brand-panel-background: color-mix(
+    in srgb,
+    var(--color-white) 5%,
+    var(--color-gray-900)
+  );
+  --scrollbar-thumb-color: var(--color-gray-700);
+  --scrollbar-thumb-hover-color: var(--color-gray-600);
+}
+
+:root.auth-page {
+  --document-gutter-background: var(--auth-content-background);
+}
+
+@media (min-width: 64rem) {
+  :root.auth-page {
+    --document-gutter-background: var(--auth-brand-panel-background);
+  }
+}
+
 /*
   Global base styles.
 
@@ -284,9 +321,61 @@ layer(base);
     cursor: pointer;
   }
 
+  html,
+  body,
+  #root {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  html {
+    scrollbar-gutter: stable;
+    background-color: var(--document-gutter-background);
+  }
+
+  html.modal-open {
+    background-color: var(--modal-gutter-background);
+  }
+
+  #root {
+    overflow-x: clip;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb-color) var(--scrollbar-track-color);
+  }
+
+  *:hover {
+    scrollbar-color: var(--scrollbar-thumb-hover-color)
+      var(--scrollbar-track-color);
+  }
+
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background-color: var(--scrollbar-track-color);
+  }
+
+  *::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background-color: var(--scrollbar-thumb-color);
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: var(--scrollbar-thumb-hover-color);
+  }
+
+  *::-webkit-scrollbar-corner {
+    background-color: var(--scrollbar-track-color);
+  }
+
   /* Apply the project font, page background, and base positioning. */
   body {
-    @apply relative z-1 bg-gray-50 font-outfit font-normal;
+    @apply relative z-1 bg-gray-50 font-outfit font-normal dark:bg-gray-900;
   }
 }
 
@@ -399,40 +488,9 @@ layer(base);
   scrollbar-width: none;
 }
 
-/*
-  Apply a compact themed scrollbar.
-
-  Firefox uses scrollbar-width and scrollbar-color.
-  Chromium, Edge, and Safari use the ::-webkit-scrollbar selectors.
-
-  A CSS variable keeps the thumb color synchronized across both systems.
-*/
+/* Reserve room where a stable scrollbar gutter prevents content overlap. */
 @utility custom-scrollbar {
-  --scrollbar-thumb-color: var(--color-gray-200);
-
-  scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar-thumb-color) transparent;
-
-  /* Replace the light thumb color when dark mode is active. */
-  @variant dark {
-    --scrollbar-thumb-color: var(--color-gray-700);
-  }
-
-  /* Set the scrollbar's width and height in WebKit-based browsers. */
-  &::-webkit-scrollbar {
-    @apply size-1.5;
-  }
-
-  /* Give the scrollbar track rounded edges. */
-  &::-webkit-scrollbar-track {
-    @apply rounded-full;
-  }
-
-  /* Style the draggable scrollbar thumb. */
-  &::-webkit-scrollbar-thumb {
-    @apply rounded-full;
-    background-color: var(--scrollbar-thumb-color);
-  }
+  scrollbar-gutter: stable;
 }
 
 /* ================================================== */

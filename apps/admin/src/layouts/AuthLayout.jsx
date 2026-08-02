@@ -1,11 +1,22 @@
+import { useLayoutEffect } from "react";
 import { Outlet } from "react-router";
 
 import { ThemeToggleButton } from "../components/common/ThemeToggleButton.jsx";
 import AuthGridShape from "../components/layout/auth/AuthGridShape.jsx";
 
 function AuthLayout() {
+  useLayoutEffect(() => {
+    const documentElement = document.documentElement;
+
+    documentElement.classList.add("auth-page");
+
+    return () => {
+      documentElement.classList.remove("auth-page");
+    };
+  }, []);
+
   return (
-    <div className="relative min-h-dvh overflow-x-hidden bg-white dark:bg-gray-900">
+    <div className="relative min-h-dvh overflow-x-clip bg-white dark:bg-gray-900">
       <div className="relative flex min-h-dvh w-full flex-col dark:bg-gray-900 lg:flex-row">
         {/* Authentication page content */}
         <main className="flex min-h-dvh w-full flex-col lg:w-1/2">

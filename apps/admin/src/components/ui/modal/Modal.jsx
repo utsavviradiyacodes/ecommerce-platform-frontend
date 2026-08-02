@@ -33,6 +33,7 @@ function Modal({
 
     const previousOverflow = document.body.style.overflow;
     const previouslyFocusedElement = document.activeElement;
+    const documentElement = document.documentElement;
     const modalElement = modalRef.current;
 
     function getFocusableElements() {
@@ -50,6 +51,10 @@ function Modal({
     }
 
     function handleKeyDown(event) {
+      if (event.defaultPrevented) {
+        return;
+      }
+
       if (event.key === "Escape") {
         event.preventDefault();
         onCloseRef.current();
@@ -72,6 +77,18 @@ function Modal({
       const lastFocusableElement =
         focusableElements[focusableElements.length - 1];
 
+      if (!focusableElements.includes(document.activeElement)) {
+        event.preventDefault();
+
+        if (event.shiftKey) {
+          lastFocusableElement.focus();
+        } else {
+          firstFocusableElement.focus();
+        }
+
+        return;
+      }
+
       if (event.shiftKey && document.activeElement === firstFocusableElement) {
         event.preventDefault();
         lastFocusableElement.focus();
@@ -84,6 +101,7 @@ function Modal({
       }
     }
 
+    documentElement.classList.add("modal-open");
     document.body.style.overflow = "hidden";
     document.addEventListener("keydown", handleKeyDown);
 
@@ -99,6 +117,7 @@ function Modal({
 
     return () => {
       window.cancelAnimationFrame(focusFrameId);
+      documentElement.classList.remove("modal-open");
       document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", handleKeyDown);
 
@@ -113,8 +132,8 @@ function Modal({
   }
 
   return (
-    <div className="custom-scrollbar fixed inset-0 z-99999 overflow-y-auto scrollbar-gutter-stable">
-      <div className="flex min-h-full justify-center p-3 sm:p-6">
+    <div className="custom-scrollbar fixed inset-0 z-99999 overflow-x-hidden overflow-y-auto scrollbar-gutter-stable">
+      <div className="flex min-h-full min-w-0 justify-center p-3 sm:p-6">
         <div
           className="fixed inset-0 h-full w-full bg-gray-400/50 backdrop-blur-[32px]"
           onClick={onClose}
@@ -128,7 +147,7 @@ function Modal({
           aria-labelledby={ariaLabelledBy}
           aria-describedby={ariaDescribedBy}
           tabIndex={-1}
-          className={`relative z-10 my-auto w-full rounded-3xl bg-white dark:bg-gray-900 ${className}`}
+          className={`relative z-10 my-auto w-full min-w-0 rounded-3xl bg-white dark:bg-gray-900 ${className}`}
           onClick={(event) => event.stopPropagation()}
         >
           {showCloseButton && (

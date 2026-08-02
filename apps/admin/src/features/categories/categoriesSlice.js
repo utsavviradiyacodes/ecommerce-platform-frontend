@@ -129,6 +129,9 @@ const categoriesSlice = createSlice({
   selectors: {
     selectCategories: (sliceState) => sliceState.categories,
 
+    selectCategoriesListStatus: (sliceState) =>
+      sliceState.requests.list.status,
+
     selectIsCategoriesListPending: (sliceState) =>
       sliceState.requests.list.status === REQUEST_STATUS.PENDING,
 
@@ -266,6 +269,7 @@ export const {
 
 export const {
   selectCategories,
+  selectCategoriesListStatus,
   selectIsCategoriesListPending,
   selectCategoriesListError,
   selectIsCategoryCreatePending,

@@ -3,8 +3,8 @@ import { configureStore } from "@reduxjs/toolkit";
 import authReducer, {
   restoreAdminPasswordRecoverySession,
 } from "../features/auth/authSlice.js";
-
 import categoriesReducer from "../features/categories/categoriesSlice.js";
+import subcategoriesReducer from "../features/subcategories/subcategoriesSlice.js";
 
 import {
   readAdminPasswordRecoverySession,
@@ -15,6 +15,7 @@ export const store = configureStore({
   reducer: {
     auth: authReducer,
     categories: categoriesReducer,
+    subcategories: subcategoriesReducer,
   },
 });
 
