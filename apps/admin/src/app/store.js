@@ -4,6 +4,7 @@ import authReducer, {
   restoreAdminPasswordRecoverySession,
 } from "../features/auth/authSlice.js";
 import categoriesReducer from "../features/categories/categoriesSlice.js";
+import productsReducer from "../features/products/productsSlice.js";
 import subcategoriesReducer from "../features/subcategories/subcategoriesSlice.js";
 
 import {
@@ -15,6 +16,7 @@ export const store = configureStore({
   reducer: {
     auth: authReducer,
     categories: categoriesReducer,
+    products: productsReducer,
     subcategories: subcategoriesReducer,
   },
 });
