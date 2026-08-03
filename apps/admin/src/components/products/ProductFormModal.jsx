@@ -66,6 +66,7 @@ function ProductFormModal({
   register,
   control,
   setValue,
+  clearErrors,
   categoryOptions = [],
   subcategoryOptions = [],
   existingImages = [],
@@ -357,10 +358,14 @@ function ProductFormModal({
                         onChange={(nextCategoryId) => {
                           if (!Object.is(nextCategoryId, field.value)) {
                             field.onChange(nextCategoryId);
+
                             setValue("subcategoryId", "", {
                               shouldDirty: true,
-                              shouldValidate: true,
+                              shouldTouch: false,
+                              shouldValidate: false,
                             });
+
+                            clearErrors("subcategoryId");
                           }
                         }}
                         onBlur={field.onBlur}
@@ -394,7 +399,13 @@ function ProductFormModal({
                         name={field.name}
                         options={subcategoryOptions}
                         value={field.value ?? ""}
-                        onChange={field.onChange}
+                        onChange={(nextSubcategoryId) => {
+                          field.onChange(nextSubcategoryId);
+
+                          if (nextSubcategoryId) {
+                            clearErrors("subcategoryId");
+                          }
+                        }}
                         onBlur={field.onBlur}
                         placeholder={
                           selectedCategoryId
@@ -487,9 +498,7 @@ function ProductFormModal({
 
           <Button
             type="submit"
-            disabled={
-              isSubmitting || (isEditMode && !hasMeaningfulChanges)
-            }
+            disabled={isSubmitting || (isEditMode && !hasMeaningfulChanges)}
             className="w-full sm:w-auto"
           >
             {isSubmitting ? pendingSubmitLabel : submitLabel}

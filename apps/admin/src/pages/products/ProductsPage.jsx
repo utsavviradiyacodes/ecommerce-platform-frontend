@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { useDispatch, useSelector, useStore } from "react-redux";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -378,7 +372,8 @@ function buildProductUpdateChanges(productData, originalProduct) {
   }
 
   if (
-    nextOriginalPrice !== getOptionalOriginalPrice(originalProduct.originalPrice)
+    nextOriginalPrice !==
+    getOptionalOriginalPrice(originalProduct.originalPrice)
   ) {
     changes.originalPrice = nextOriginalPrice === null ? 0 : nextOriginalPrice;
   }
@@ -507,9 +502,7 @@ function ProductsPage() {
   const productsLoadedQueryKey = useSelector(selectProductsLoadedQueryKey);
   const productsListStatus = useSelector(selectProductsListStatus);
   const productsListError = useSelector(selectProductsListError);
-  const mutationRefresh = useSelector(
-    selectProductsListRefreshRequirement
-  );
+  const mutationRefresh = useSelector(selectProductsListRefreshRequirement);
 
   const productDetails = useSelector(selectProductDetails);
   const productDetailsStatus = useSelector(selectProductDetailsStatus);
@@ -523,9 +516,7 @@ function ProductsPage() {
   const updateSuccessMessage = useSelector(selectProductUpdateSuccessMessage);
   const isApprovePending = useSelector(selectIsProductApprovePending);
   const approveError = useSelector(selectProductApproveError);
-  const approveSuccessMessage = useSelector(
-    selectProductApproveSuccessMessage
-  );
+  const approveSuccessMessage = useSelector(selectProductApproveSuccessMessage);
   const isRejectPending = useSelector(selectIsProductRejectPending);
   const rejectError = useSelector(selectProductRejectError);
   const rejectSuccessMessage = useSelector(selectProductRejectSuccessMessage);
@@ -534,9 +525,7 @@ function ProductsPage() {
   const toggleSuccessMessage = useSelector(selectProductToggleSuccessMessage);
   const isArchivePending = useSelector(selectIsProductArchivePending);
   const archiveError = useSelector(selectProductArchiveError);
-  const archiveSuccessMessage = useSelector(
-    selectProductArchiveSuccessMessage
-  );
+  const archiveSuccessMessage = useSelector(selectProductArchiveSuccessMessage);
   const mutationTargetIds = useSelector(selectProductMutationTargetIds);
 
   const categories = useSelector(selectCategories);
@@ -593,8 +582,7 @@ function ProductsPage() {
       limit: PRODUCTS_PAGE_SIZE,
       search: committedSearch,
       approvalStatus: approvalFilter,
-      isActive:
-        availabilityFilter === "" ? undefined : availabilityFilter,
+      isActive: availabilityFilter === "" ? undefined : availabilityFilter,
     };
 
     return {
@@ -635,11 +623,8 @@ function ProductsPage() {
   );
   const areProductDependenciesUsable =
     hasUsableCategories && hasUsableSubcategories;
-  const relationshipsLocked =
-    isEditMode && !areProductDependenciesUsable;
-  const isFormMutationPending = isEditMode
-    ? isUpdatePending
-    : isCreatePending;
+  const relationshipsLocked = isEditMode && !areProductDependenciesUsable;
+  const isFormMutationPending = isEditMode ? isUpdatePending : isCreatePending;
   const formMutationError = isEditMode ? updateError : createError;
   const mutationSuccessMessage =
     archiveSuccessMessage ||
@@ -650,8 +635,7 @@ function ProductsPage() {
     createSuccessMessage;
 
   const currentQueryKey = currentQueryArgs.queryKey;
-  const isCurrentQueryRequested =
-    productsRequestedQueryKey === currentQueryKey;
+  const isCurrentQueryRequested = productsRequestedQueryKey === currentQueryKey;
   const isCurrentQueryLoaded = productsLoadedQueryKey === currentQueryKey;
   const isRequestedViewLoading =
     !isCurrentQueryLoaded &&
@@ -722,15 +706,14 @@ function ProductsPage() {
 
   useEffect(() => {
     let isActive = true;
-    const requestPromise = dispatch(
-      requestProductsListThunk(currentQueryArgs)
-    );
+    const requestPromise = dispatch(requestProductsListThunk(currentQueryArgs));
     const requestSequence =
       getPendingProductsListRequest(currentQueryArgs)?.sequence ?? 0;
 
     requestPromise.then((resultAction) => {
-      const currentRefreshRequirement =
-        selectProductsListRefreshRequirement(store.getState());
+      const currentRefreshRequirement = selectProductsListRefreshRequirement(
+        store.getState()
+      );
       const isSupersededByRequiredRefresh =
         currentRefreshRequirement.afterSequence !== null &&
         requestSequence <= currentRefreshRequirement.afterSequence;
@@ -902,9 +885,7 @@ function ProductsPage() {
   }
 
   function scheduleProductsRefresh() {
-    dispatch(
-      requestProductsListRefresh(getProductsListRequestSequence())
-    );
+    dispatch(requestProductsListRefresh(getProductsListRequestSequence()));
   }
 
   function handleOpenCreateModal() {
@@ -958,10 +939,7 @@ function ProductsPage() {
         return;
       }
 
-      const changes = buildProductUpdateChanges(
-        productData,
-        selectedProduct
-      );
+      const changes = buildProductUpdateChanges(productData, selectedProduct);
 
       if (!changes) {
         reset(getProductEditFormValues(selectedProduct));
@@ -1102,9 +1080,7 @@ function ProductsPage() {
 
     dispatch(clearToggleProductRequestFeedback());
 
-    const resultAction = await dispatch(
-      toggleProductStatusThunk(product._id)
-    );
+    const resultAction = await dispatch(toggleProductStatusThunk(product._id));
 
     if (!toggleProductStatusThunk.fulfilled.match(resultAction)) {
       return;
@@ -1191,7 +1167,9 @@ function ProductsPage() {
           actionLabel="Try again"
           onAction={handleRetryProducts}
         >
-          <p>Products for the requested search and filters could not be loaded.</p>
+          <p>
+            Products for the requested search and filters could not be loaded.
+          </p>
           <p className="mt-1 text-xs">{productsListError}</p>
         </PageFeedback>
       )}
@@ -1202,7 +1180,9 @@ function ProductsPage() {
           actionLabel="Try again"
           onAction={handleRetryProducts}
         >
-          <p>Products could not be refreshed. Previously loaded data is shown.</p>
+          <p>
+            Products could not be refreshed. Previously loaded data is shown.
+          </p>
           <p className="mt-1 text-xs">{productsListError}</p>
         </PageFeedback>
       )}
@@ -1310,6 +1290,7 @@ function ProductsPage() {
           register={register}
           control={control}
           setValue={setValue}
+          clearErrors={clearErrors}
           categoryOptions={formCategoryOptions}
           subcategoryOptions={formSubcategoryOptions}
           existingImages={selectedProduct?.images ?? []}
@@ -1319,9 +1300,7 @@ function ProductsPage() {
           relationshipsLocked={relationshipsLocked}
           dependencyMessage={dependencyLockMessage}
           tagsHint={tagsHint}
-          isCategoryLoading={
-            isCategoriesListPending && !hasUsableCategories
-          }
+          isCategoryLoading={isCategoriesListPending && !hasUsableCategories}
           isSubcategoryLoading={
             isSubcategoriesListPending && !hasUsableSubcategories
           }
