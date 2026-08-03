@@ -4,6 +4,8 @@ import authReducer, {
   restoreAdminPasswordRecoverySession,
 } from "../features/auth/authSlice.js";
 import categoriesReducer from "../features/categories/categoriesSlice.js";
+import customersReducer from "../features/customers/customersSlice.js";
+import sellersReducer from "../features/sellers/sellersSlice.js";
 import productsReducer from "../features/products/productsSlice.js";
 import subcategoriesReducer from "../features/subcategories/subcategoriesSlice.js";
 import dashboardReducer from "../features/dashboard/dashboardSlice.js";
@@ -18,6 +20,8 @@ export const store = configureStore({
     auth: authReducer,
     dashboard: dashboardReducer,
     categories: categoriesReducer,
+    customers: customersReducer,
+    sellers: sellersReducer,
     products: productsReducer,
     subcategories: subcategoriesReducer,
   },
