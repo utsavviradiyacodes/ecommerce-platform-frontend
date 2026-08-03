@@ -6,6 +6,7 @@ import authReducer, {
 import categoriesReducer from "../features/categories/categoriesSlice.js";
 import productsReducer from "../features/products/productsSlice.js";
 import subcategoriesReducer from "../features/subcategories/subcategoriesSlice.js";
+import dashboardReducer from "../features/dashboard/dashboardSlice.js";
 
 import {
   readAdminPasswordRecoverySession,
@@ -15,6 +16,7 @@ import {
 export const store = configureStore({
   reducer: {
     auth: authReducer,
+    dashboard: dashboardReducer,
     categories: categoriesReducer,
     products: productsReducer,
     subcategories: subcategoriesReducer,
