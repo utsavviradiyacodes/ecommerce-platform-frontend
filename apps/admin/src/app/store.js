@@ -11,6 +11,7 @@ import subcategoriesReducer from "../features/subcategories/subcategoriesSlice.j
 import dashboardReducer from "../features/dashboard/dashboardSlice.js";
 import ordersReducer from "../features/orders/ordersSlice.js";
 import profileReducer from "../features/profile/profileSlice.js";
+import settingsReducer from "../features/settings/settingsSlice.js";
 
 import {
   readAdminPasswordRecoverySession,
@@ -28,6 +29,7 @@ export const store = configureStore({
     products: productsReducer,
     subcategories: subcategoriesReducer,
     profile: profileReducer,
+    settings: settingsReducer,
   },
 });
 
