@@ -33,6 +33,8 @@ import {
   isAdminPasswordRecoveryStateValid,
 } from "./authConstants.js";
 
+import { normalizeAdminData } from "./adminData.js";
+
 const PASSWORD_RESET_REJECTION_REASON = {
   OTP_INVALID: "otpInvalid",
 };
@@ -129,11 +131,7 @@ function createRequestedPasswordRecovery(email, userId, resendAvailableAt) {
   };
 }
 
-function createVerifiedPasswordRecovery(
-  passwordRecovery,
-  userId,
-  verifiedOtp
-) {
+function createVerifiedPasswordRecovery(passwordRecovery, userId, verifiedOtp) {
   return {
     ...passwordRecovery,
     userId,
@@ -384,6 +382,18 @@ const authSlice = createSlice({
       state.accessToken = action.payload;
     },
 
+    synchronizeCurrentAdmin: {
+      reducer(state, action) {
+        state.admin = action.payload;
+      },
+
+      prepare(admin) {
+        return {
+          payload: normalizeAdminData(admin),
+        };
+      },
+    },
+
     invalidateAdminSession(state) {
       clearAdminAuthenticationBoundaryState(state);
     },
@@ -439,10 +449,8 @@ const authSlice = createSlice({
     },
 
     cancelAdminPasswordRecovery(state) {
-      clearPasswordRecoveryData(
-        state,
-        ADMIN_PASSWORD_RECOVERY_PHASE.CANCELLED
-      );
+      clearPasswordRecoveryData(state, ADMIN_PASSWORD_RECOVERY_PHASE.CANCELLED);
+
       state.notices.passwordRecovery = null;
 
       resetPasswordRecoveryRequestStates(state);
@@ -644,10 +652,8 @@ const authSlice = createSlice({
           return;
         }
 
-        const { token, ...admin } = action.payload.data;
-
-        state.accessToken = token;
-        state.admin = admin;
+        state.accessToken = action.payload.data.token;
+        state.admin = action.payload.data.admin;
 
         clearPasswordRecoveryData(state);
         state.notices.passwordRecovery = null;
@@ -1007,6 +1013,7 @@ export const {
 
 export const {
   setAdminAccessToken,
+  synchronizeCurrentAdmin,
   invalidateAdminSession,
   restoreAdminPasswordRecoverySession,
   repairAdminPasswordRecoveryState,

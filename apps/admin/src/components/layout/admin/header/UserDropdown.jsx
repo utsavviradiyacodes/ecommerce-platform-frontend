@@ -21,6 +21,25 @@ const dropdownItemClasses =
 const dropdownIconClasses =
   "shrink-0 fill-gray-500 transition-colors group-hover:fill-gray-700 dark:fill-gray-400 dark:group-hover:fill-gray-300";
 
+function HeaderAvatar({ avatarUrl, adminName, adminInitial }) {
+  const [hasAvatarError, setHasAvatarError] = useState(false);
+
+  return (
+    <span className="mr-3 flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-500 text-lg font-semibold text-white">
+      {avatarUrl && !hasAvatarError ? (
+        <img
+          src={avatarUrl}
+          alt={`${adminName} profile`}
+          onError={() => setHasAvatarError(true)}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        adminInitial
+      )}
+    </span>
+  );
+}
+
 function UserDropdown() {
   const dispatch = useDispatch();
 
@@ -29,8 +48,17 @@ function UserDropdown() {
 
   const [isOpen, setIsOpen] = useState(false);
 
-  const adminName = currentAdmin?.name || "Admin";
-  const adminEmail = currentAdmin?.email || "";
+  const adminName =
+    typeof currentAdmin?.name === "string" && currentAdmin.name.trim()
+      ? currentAdmin.name.trim()
+      : "Admin";
+
+  const adminEmail =
+    typeof currentAdmin?.email === "string" ? currentAdmin.email.trim() : "";
+
+  const avatarUrl =
+    typeof currentAdmin?.avatar === "string" ? currentAdmin.avatar.trim() : "";
+
   const adminInitial = adminName.charAt(0).toUpperCase();
 
   function toggleDropdown() {
@@ -53,9 +81,12 @@ function UserDropdown() {
         onClick={toggleDropdown}
         className="dropdown-toggle flex items-center text-gray-700 dark:text-gray-400"
       >
-        <span className="mr-3 flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-brand-500 text-lg font-semibold text-white">
-          {adminInitial}
-        </span>
+        <HeaderAvatar
+          key={avatarUrl || "header-avatar-fallback"}
+          avatarUrl={avatarUrl}
+          adminName={adminName}
+          adminInitial={adminInitial}
+        />
 
         <span className="mr-1 hidden text-theme-sm font-medium sm:block">
           {adminName}

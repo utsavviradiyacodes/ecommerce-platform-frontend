@@ -1,4 +1,5 @@
 import axiosInstance from "../../api/axiosInstance.js";
+import { normalizeAdminData } from "./adminData.js";
 
 import {
   ADMIN_PASSWORD_RECOVERY_UNEXPECTED_RESPONSE_MESSAGE,
@@ -39,7 +40,28 @@ export async function signInAdmin(credentials) {
     }
   );
 
-  return response.data;
+  const responseData = response.data;
+  const authenticationData = responseData?.data;
+
+  if (
+    responseData?.success !== true ||
+    !isNonArrayObject(authenticationData) ||
+    !isNonEmptyString(authenticationData.token)
+  ) {
+    throw new Error(ADMIN_SESSION_UNEXPECTED_RESPONSE_MESSAGE);
+  }
+
+  const { token, ...rawAdmin } = authenticationData;
+
+  return {
+    success: true,
+    message:
+      typeof responseData.message === "string" ? responseData.message : null,
+    data: {
+      token: token.trim(),
+      admin: normalizeAdminData(rawAdmin),
+    },
+  };
 }
 
 export async function requestAdminPasswordReset(email) {
@@ -126,7 +148,12 @@ export async function getCurrentAdmin(
     throw new Error(ADMIN_SESSION_UNEXPECTED_RESPONSE_MESSAGE);
   }
 
-  return response.data;
+  return {
+    success: true,
+    message:
+      typeof response.data.message === "string" ? response.data.message : null,
+    data: normalizeAdminData(response.data.data),
+  };
 }
 
 export async function refreshAdminAccessToken() {
