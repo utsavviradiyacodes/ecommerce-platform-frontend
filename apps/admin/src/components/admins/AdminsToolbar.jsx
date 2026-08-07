@@ -15,22 +15,25 @@ function AddIcon() {
 
 function AdminsToolbar({
   searchDraft = "",
+  resultCount = null,
+  isResultCountCurrent = false,
   onSearchDraftChange = () => {},
-  onSearchSubmit = () => {},
   onAddAdmin = () => {},
 }) {
-  function handleSubmit(event) {
-    event.preventDefault();
-    onSearchSubmit(searchDraft);
-  }
+  const hasSearchQuery = searchDraft.trim().length > 0;
+  const hasValidResultCount =
+    Number.isSafeInteger(resultCount) && resultCount >= 0;
+  const showResultCount =
+    hasSearchQuery && isResultCountCurrent && hasValidResultCount;
+  const resultLabel =
+    resultCount === 1
+      ? "1 matching admin"
+      : `${resultCount} matching admins`;
 
   return (
     <div className="mb-5 min-w-0 rounded-xl border border-gray-200 bg-white p-4 sm:p-5 dark:border-white/5 dark:bg-white/3">
-      <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center">
-        <form
-          onSubmit={handleSubmit}
-          className="min-w-0 flex-1"
-        >
+      <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start">
+        <div className="min-w-0 flex-1">
           <div className="relative min-w-0 flex-1">
             <label htmlFor="admin-search" className="sr-only">
               Search Admins by name or email
@@ -49,8 +52,12 @@ function AdminsToolbar({
               className="h-11 w-full min-w-0 rounded-lg border border-gray-300 bg-transparent py-2.5 pr-4 pl-11 text-sm text-gray-800 shadow-theme-xs outline-none transition placeholder:text-gray-400 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800 dark:disabled:bg-gray-800"
             />
           </div>
-
-        </form>
+          {showResultCount && (
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              {resultLabel}
+            </p>
+          )}
+        </div>
 
         <button
           type="button"

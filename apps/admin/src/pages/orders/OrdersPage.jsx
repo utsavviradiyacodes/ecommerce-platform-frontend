@@ -126,6 +126,39 @@ function getEntityId(entity) {
   return normalizeText(entity?._id ?? entity?.id);
 }
 
+function getOrderSearchText(order) {
+  const customer =
+    order?.customer &&
+    typeof order.customer === "object" &&
+    !Array.isArray(order.customer)
+      ? order.customer
+      : null;
+  const orderItems = Array.isArray(order?.orderItems) ? order.orderItems : [];
+  const sellerSearchTerms = orderItems.flatMap((item) => {
+    const seller = item?.seller;
+    const sellerRecord =
+      seller && typeof seller === "object" && !Array.isArray(seller)
+        ? seller
+        : null;
+
+    return [
+      getEntityId(seller),
+      normalizeText(sellerRecord?.name),
+      normalizeText(sellerRecord?.shopName),
+    ];
+  });
+
+  return [
+    getEntityId(order),
+    normalizeText(customer?.name),
+    normalizeText(customer?.email),
+    ...sellerSearchTerms,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
 function getNonNegativeNumber(value, { integer = false } = {}) {
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
     return null;
@@ -249,6 +282,7 @@ function OrdersPage() {
   const detailsError = useSelector(selectOrderDetailsError);
   const isDetailsPending = useSelector(selectIsOrderDetailsPending);
 
+  const [searchQuery, setSearchQuery] = useState("");
   const [orderStatus, setOrderStatus] = useState("");
   const [paymentStatus, setPaymentStatus] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
@@ -298,6 +332,17 @@ function OrdersPage() {
     () => (isCurrentQueryLoaded ? orders : []),
     [isCurrentQueryLoaded, orders]
   );
+  const normalizedSearch = normalizeText(searchQuery).toLowerCase();
+  const isSearchActive = normalizedSearch.length > 0;
+  const searchedOrders = useMemo(() => {
+    if (!normalizedSearch) {
+      return visibleOrders;
+    }
+
+    return visibleOrders.filter((order) =>
+      getOrderSearchText(order).includes(normalizedSearch)
+    );
+  }, [normalizedSearch, visibleOrders]);
   const hasActiveFilters = Boolean(
     orderStatus || paymentStatus || paymentMethod
   );
@@ -405,6 +450,7 @@ function OrdersPage() {
     }
 
     const correctionTimerId = window.setTimeout(() => {
+      setSearchQuery("");
       setCurrentPage(safeLastPage);
     }, 0);
 
@@ -443,6 +489,7 @@ function OrdersPage() {
   }
 
   function handleFilterChange(setFilter, value) {
+    setSearchQuery("");
     setFilter(normalizeText(value).toLowerCase());
     setCurrentPage(1);
   }
@@ -457,6 +504,7 @@ function OrdersPage() {
       return;
     }
 
+    setSearchQuery("");
     setCurrentPage(page);
   }
 
@@ -573,14 +621,14 @@ function OrdersPage() {
       {!hasRequestedViewError && (
         <>
           <OrdersToolbar
+            searchQuery={searchQuery}
             orderStatus={orderStatus}
             paymentStatus={paymentStatus}
             paymentMethod={paymentMethod}
-            currentPage={visiblePage}
-            pageSize={ORDERS_PAGE_SIZE}
-            totalItems={visibleTotal}
-            pageRecordCount={visibleOrders.length}
+            matchingCount={searchedOrders.length}
+            isSearchActive={isSearchActive}
             disabled={isRequestedViewLoading}
+            onSearchChange={setSearchQuery}
             onOrderStatusChange={(value) =>
               handleFilterChange(setOrderStatus, value)
             }
@@ -593,8 +641,9 @@ function OrdersPage() {
           />
 
           <OrdersTable
-            orders={visibleOrders}
+            orders={searchedOrders}
             isLoading={isRequestedViewLoading}
+            isSearchActive={isSearchActive}
             hasActiveFilters={hasActiveFilters}
             currentPage={visiblePage}
             totalPages={visibleTotalPages}

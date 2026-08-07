@@ -74,6 +74,41 @@ function isRefreshOwnedByCurrentSession(
   );
 }
 
+async function runAdminAccessTokenRefresh(store, refreshOperation) {
+  const { accessToken, sessionGeneration } = refreshOperation;
+
+  try {
+    const response = await refreshAdminAccessToken();
+
+    if (
+      !isRefreshOwnedByCurrentSession(
+        store,
+        accessToken,
+        sessionGeneration
+      )
+    ) {
+      throw new Error(ADMIN_SESSION_CHANGED_DURING_REFRESH_MESSAGE);
+    }
+
+    store.dispatch(setAdminAccessToken(response.token));
+
+    return response.token;
+  } catch (error) {
+    if (
+      error?.response?.status === 401 &&
+      isRefreshOwnedByCurrentSession(store, accessToken, sessionGeneration)
+    ) {
+      store.dispatch(invalidateAdminSession());
+    }
+
+    throw error;
+  } finally {
+    if (adminAccessTokenRefreshOperation === refreshOperation) {
+      adminAccessTokenRefreshOperation = null;
+    }
+  }
+}
+
 function getAdminAccessTokenRefreshPromise(
   store,
   accessToken,
@@ -84,9 +119,7 @@ function getAdminAccessTokenRefreshPromise(
       adminAccessTokenRefreshOperation.accessToken !== accessToken ||
       adminAccessTokenRefreshOperation.sessionGeneration !== sessionGeneration
     ) {
-      return Promise.reject(
-        new Error(ADMIN_SESSION_CHANGED_DURING_REFRESH_MESSAGE)
-      );
+      throw new Error(ADMIN_SESSION_CHANGED_DURING_REFRESH_MESSAGE);
     }
 
     return adminAccessTokenRefreshOperation.promise;
@@ -98,41 +131,10 @@ function getAdminAccessTokenRefreshPromise(
     promise: null,
   };
 
-  refreshOperation.promise = refreshAdminAccessToken()
-    .then((response) => {
-      if (
-        !isRefreshOwnedByCurrentSession(
-          store,
-          accessToken,
-          sessionGeneration
-        )
-      ) {
-        throw new Error(ADMIN_SESSION_CHANGED_DURING_REFRESH_MESSAGE);
-      }
-
-      store.dispatch(setAdminAccessToken(response.token));
-
-      return response.token;
-    })
-    .catch((error) => {
-      if (
-        error?.response?.status === 401 &&
-        isRefreshOwnedByCurrentSession(
-          store,
-          accessToken,
-          sessionGeneration
-        )
-      ) {
-        store.dispatch(invalidateAdminSession());
-      }
-
-      throw error;
-    })
-    .finally(() => {
-      if (adminAccessTokenRefreshOperation === refreshOperation) {
-        adminAccessTokenRefreshOperation = null;
-      }
-    });
+  refreshOperation.promise = runAdminAccessTokenRefresh(
+    store,
+    refreshOperation
+  );
 
   adminAccessTokenRefreshOperation = refreshOperation;
 
@@ -155,9 +157,7 @@ export function setupAxiosInterceptors(store) {
           !isNonEmptyAccessToken(adminAccessToken) ||
           readBearerAccessToken(config) !== adminAccessToken)
       ) {
-        return Promise.reject(
-          new Error(ADMIN_SESSION_CHANGED_DURING_REFRESH_MESSAGE)
-        );
+        throw new Error(ADMIN_SESSION_CHANGED_DURING_REFRESH_MESSAGE);
       }
 
       if (config[ADMIN_AUTH_RETRY_FLAG] !== true) {
@@ -172,7 +172,7 @@ export function setupAxiosInterceptors(store) {
       return config;
     },
     (error) => {
-      return Promise.reject(error);
+      throw error;
     }
   );
 
@@ -196,7 +196,7 @@ export function setupAxiosInterceptors(store) {
         originalRequestSessionGeneration === currentSessionGeneration;
 
       if (!shouldAttemptAdminAccessTokenRefresh) {
-        return Promise.reject(error);
+        throw error;
       }
 
       originalRequest[ADMIN_AUTH_RETRY_FLAG] = true;
@@ -207,29 +207,25 @@ export function setupAxiosInterceptors(store) {
         return axiosInstance(originalRequest);
       }
 
-      try {
-        const accessToken = await getAdminAccessTokenRefreshPromise(
+      const accessToken = await getAdminAccessTokenRefreshPromise(
+        store,
+        originalRequestAccessToken,
+        originalRequestSessionGeneration
+      );
+
+      if (
+        !isRefreshOwnedByCurrentSession(
           store,
-          originalRequestAccessToken,
+          accessToken,
           originalRequestSessionGeneration
-        );
-
-        if (
-          !isRefreshOwnedByCurrentSession(
-            store,
-            accessToken,
-            originalRequestSessionGeneration
-          )
-        ) {
-          return Promise.reject(error);
-        }
-
-        setAuthorizationHeader(originalRequest, accessToken);
-
-        return axiosInstance(originalRequest);
-      } catch (refreshError) {
-        return Promise.reject(refreshError);
+        )
+      ) {
+        throw error;
       }
+
+      setAuthorizationHeader(originalRequest, accessToken);
+
+      return axiosInstance(originalRequest);
     }
   );
 }

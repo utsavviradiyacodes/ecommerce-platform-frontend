@@ -792,10 +792,6 @@ function ReturnsPage() {
           <ReturnsToolbar
             searchQuery={searchQuery}
             status={status}
-            currentPage={visiblePage}
-            pageSize={RETURNS_PAGE_SIZE}
-            totalItems={visibleTotal}
-            pageRecordCount={visibleReturns.length}
             matchingCount={searchedReturns.length}
             isSearchActive={isSearchActive}
             disabled={isRequestedViewLoading}

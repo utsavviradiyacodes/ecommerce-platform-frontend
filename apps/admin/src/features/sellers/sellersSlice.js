@@ -150,9 +150,7 @@ function normalizeSellersListResponse(response) {
   const sellers = data?.sellers;
   const total = parseSupportedInteger(data?.total);
   const page = parseSupportedInteger(data?.page, { positive: true });
-  const totalPages = parseSupportedInteger(data?.totalPages, {
-    positive: true,
-  });
+  const totalPages = parseSupportedInteger(data?.totalPages);
 
   if (
     response?.success !== true ||

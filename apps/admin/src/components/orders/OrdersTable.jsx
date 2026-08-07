@@ -234,6 +234,7 @@ function OrdersTableSkeleton() {
 function OrdersTable({
   orders = [],
   isLoading = false,
+  isSearchActive = false,
   hasActiveFilters = false,
   currentPage = 1,
   totalPages = 0,
@@ -410,11 +411,13 @@ function OrdersTable({
         <div className="px-6 py-14 text-center">
           <div className="mx-auto max-w-sm">
             <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-              {hasActiveFilters
-                ? "No Orders match the selected filters"
-                : "No Orders found"}
+              {isSearchActive
+                ? "No Orders on this page match your search."
+                : hasActiveFilters
+                  ? "No Orders match the selected filters"
+                  : "No Orders found"}
             </p>
-            {hasActiveFilters && (
+            {!isSearchActive && hasActiveFilters && (
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 Try changing one or more Order filters.
               </p>

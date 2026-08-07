@@ -19,7 +19,7 @@ function CategoriesToolbar({
 
   return (
     <div className="mb-5 flex min-w-0 flex-col gap-4 rounded-xl border border-gray-200 bg-white p-4 sm:flex-row sm:items-start sm:justify-between sm:p-5 dark:border-white/5 dark:bg-white/3">
-      <div className="w-full min-w-0 sm:max-w-md sm:flex-1">
+      <div className="w-full min-w-0 sm:flex-1">
         <div className="relative min-w-0">
           <label htmlFor="category-search" className="sr-only">
             Search categories

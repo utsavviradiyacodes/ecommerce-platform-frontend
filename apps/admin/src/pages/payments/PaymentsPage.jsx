@@ -674,10 +674,6 @@ function PaymentsPage() {
             searchQuery={searchQuery}
             paymentStatus={paymentStatus}
             paymentMethod={paymentMethod}
-            currentPage={visiblePage}
-            pageSize={PAYMENTS_PAGE_SIZE}
-            totalItems={visibleTotal}
-            pageRecordCount={visiblePayments.length}
             matchingCount={searchedPayments.length}
             isSearchActive={isSearchActive}
             disabled={isRequestedViewLoading}

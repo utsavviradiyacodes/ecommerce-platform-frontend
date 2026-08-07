@@ -228,6 +228,8 @@ function AdminsPage() {
   const hasStaleListWarning = Boolean(
     listError && isCurrentQueryRequested && isCurrentQueryLoaded && listIsStale
   );
+  const isResultCountCurrent =
+    isCurrentQueryLoaded && normalizeText(searchDraft) === appliedSearch;
   const visibleAdmins = isCurrentQueryLoaded ? admins : [];
   const visiblePage = isCurrentQueryLoaded ? pagination.page : currentPage;
   const visibleTotalPages = isCurrentQueryLoaded ? pagination.totalPages : 0;
@@ -342,18 +344,6 @@ function AdminsPage() {
     if (!isListPending) {
       startListRequest(currentQuery, { force: true });
     }
-  }
-
-  function handleSearchSubmit(value) {
-    const normalizedSearch = normalizeText(value);
-
-    if (normalizedSearch === appliedSearch && currentPage === 1) {
-      return;
-    }
-
-    setSearchDraft(normalizedSearch);
-    setAppliedSearch(normalizedSearch);
-    setCurrentPage(1);
   }
 
   function handlePageChange(page) {
@@ -651,8 +641,9 @@ function AdminsPage() {
         <>
           <AdminsToolbar
             searchDraft={searchDraft}
+            resultCount={visibleTotal}
+            isResultCountCurrent={isResultCountCurrent}
             onSearchDraftChange={setSearchDraft}
-            onSearchSubmit={handleSearchSubmit}
             onAddAdmin={handleOpenCreate}
           />
 
