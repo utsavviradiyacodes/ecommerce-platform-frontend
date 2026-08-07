@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
-import { useDispatch, useSelector } from "react-redux";
+import { useDispatch, useSelector, useStore } from "react-redux";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import CategoriesTable from "../../components/categories/CategoriesTable.jsx";
@@ -8,6 +8,7 @@ import CategoriesToolbar from "../../components/categories/CategoriesToolbar.jsx
 import CategoryDeleteModal from "../../components/categories/CategoryDeleteModal.jsx";
 import CategoryFormModal from "../../components/categories/CategoryFormModal.jsx";
 import PageBreadcrumb from "../../components/common/PageBreadcrumb.jsx";
+import { selectAdminSessionGeneration } from "../../features/auth/authSlice.js";
 
 import {
   clearCreateCategoryRequestFeedback,
@@ -16,7 +17,6 @@ import {
   createCategoryThunk,
   deleteCategoryThunk,
   fetchCategoriesThunk,
-  resetCategoryMutationRequestStates,
   selectCategories,
   selectCategoriesListError,
   selectCategoriesListStatus,
@@ -98,6 +98,7 @@ function paginateCategories(categories, requestedPage, pageSize) {
 
 function CategoriesPage() {
   const dispatch = useDispatch();
+  const store = useStore();
 
   const categories = useSelector(selectCategories);
   const categoriesListStatus = useSelector(selectCategoriesListStatus);
@@ -181,7 +182,9 @@ function CategoriesPage() {
     dispatch(fetchCategoriesThunk());
 
     return () => {
-      dispatch(resetCategoryMutationRequestStates());
+      dispatch(clearCreateCategoryRequestFeedback());
+      dispatch(clearUpdateCategoryRequestFeedback());
+      dispatch(clearDeleteCategoryRequestFeedback());
     };
   }, [dispatch]);
 
@@ -270,9 +273,13 @@ function CategoriesPage() {
       mutationPayload = categoryData;
     }
 
+    const sessionGeneration = selectAdminSessionGeneration(store.getState());
     const resultAction = await dispatch(mutationThunk(mutationPayload));
 
-    if (!mutationThunk.fulfilled.match(resultAction)) {
+    if (
+      !mutationThunk.fulfilled.match(resultAction) ||
+      selectAdminSessionGeneration(store.getState()) !== sessionGeneration
+    ) {
       return;
     }
 
@@ -306,11 +313,15 @@ function CategoriesPage() {
       return;
     }
 
+    const sessionGeneration = selectAdminSessionGeneration(store.getState());
     const resultAction = await dispatch(
       deleteCategoryThunk(deletingCategory._id)
     );
 
-    if (!deleteCategoryThunk.fulfilled.match(resultAction)) {
+    if (
+      !deleteCategoryThunk.fulfilled.match(resultAction) ||
+      selectAdminSessionGeneration(store.getState()) !== sessionGeneration
+    ) {
       return;
     }
 

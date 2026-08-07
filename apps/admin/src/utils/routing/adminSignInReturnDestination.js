@@ -7,6 +7,7 @@ export const ADMIN_SIGN_IN_REDIRECT_SOURCE = {
 const PUBLIC_ADMIN_AUTH_PATHS = new Set([
   "/admin/sign-in",
   "/admin/forgot-password",
+  "/admin/verify-email",
   "/admin/verify-reset-code",
   "/admin/create-new-password",
 ]);

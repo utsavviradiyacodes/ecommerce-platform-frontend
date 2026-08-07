@@ -1,6 +1,6 @@
 import axiosInstance from "../../api/axiosInstance.js";
 
-import { normalizeAdminData } from "../auth/adminData.js";
+import { normalizeAuthenticatedAdminData } from "../auth/adminData.js";
 
 const UNEXPECTED_PROFILE_RESPONSE_MESSAGE =
   "Received an unexpected profile response.";
@@ -14,7 +14,7 @@ function normalizeProfileResponse(response) {
     success: true,
     message:
       typeof response.data.message === "string" ? response.data.message : null,
-    data: normalizeAdminData(response.data.data),
+    data: normalizeAuthenticatedAdminData(response.data.data),
   };
 }
 

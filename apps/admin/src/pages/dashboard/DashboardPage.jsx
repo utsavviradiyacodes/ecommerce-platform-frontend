@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 
 import PageBreadcrumb from "../../components/common/PageBreadcrumb.jsx";
+import RefreshDataButton from "../../components/common/RefreshDataButton.jsx";
 import EcommerceMetrics from "../../components/dashboard/EcommerceMetrics.jsx";
 import MarketplaceUsersChart from "../../components/dashboard/MarketplaceUsersChart.jsx";
 import OrderFulfillmentCard from "../../components/dashboard/OrderFulfillmentCard.jsx";
@@ -10,7 +11,8 @@ import PaymentOverviewCard from "../../components/dashboard/PaymentOverviewCard.
 import RecentProducts from "../../components/dashboard/RecentProducts.jsx";
 import ReturnOverviewCard from "../../components/dashboard/ReturnOverviewCard.jsx";
 import SalesOverviewChart from "../../components/dashboard/SalesOverviewChart.jsx";
-import Button from "../../components/ui/button/Button.jsx";
+
+import { selectCurrentAdmin } from "../../features/auth/authSlice.js";
 
 import {
   fetchDashboardPaymentStatsThunk,
@@ -32,39 +34,21 @@ import {
   selectDashboardStatsStatus,
 } from "../../features/dashboard/dashboardSlice.js";
 
+import { ADMIN_PERMISSIONS } from "../../constants/adminPermissions.js";
+import { hasAdminPermission } from "../../utils/hasAdminPermission.js";
 import { REQUEST_STATUS } from "../../utils/redux/requestState.js";
 
 const RETRY_BUTTON_CLASSES =
   "inline-flex shrink-0 items-center justify-center rounded-lg border bg-white px-3 py-2 text-sm font-medium shadow-theme-xs transition focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-transparent";
 
-function RefreshIcon({ isSpinning = false }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      className={`size-5 ${isSpinning ? "animate-spin" : ""}`}
-      aria-hidden="true"
-    >
-      <path
-        d="M20 11A8 8 0 1 0 18.2 16"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-
-      <path
-        d="M20 5V11H14"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 function DashboardPage() {
   const dispatch = useDispatch();
+  const currentAdmin = useSelector(selectCurrentAdmin);
+
+  const canViewAllProducts = hasAdminPermission(
+    currentAdmin,
+    ADMIN_PERMISSIONS.PRODUCTS
+  );
 
   const stats = useSelector(selectDashboardStats);
   const statsStatus = useSelector(selectDashboardStatsStatus);
@@ -153,16 +137,10 @@ function DashboardPage() {
       />
 
       <div className="-mt-2 mb-6 flex justify-end">
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
+        <RefreshDataButton
           onClick={handleRefreshDashboard}
-          disabled={isDashboardRefreshing}
-          startIcon={<RefreshIcon isSpinning={isDashboardRefreshing} />}
-        >
-          {isDashboardRefreshing ? "Refreshing..." : "Refresh data"}
-        </Button>
+          isRefreshing={isDashboardRefreshing}
+        />
       </div>
 
       <div className="min-w-0 space-y-4 md:space-y-6">
@@ -259,6 +237,7 @@ function DashboardPage() {
           isLoading={isRecentProductsLoading}
           error={recentProductsError ?? ""}
           onRetry={handleRetryRecentProducts}
+          canViewAllProducts={canViewAllProducts}
         />
       </div>
     </div>

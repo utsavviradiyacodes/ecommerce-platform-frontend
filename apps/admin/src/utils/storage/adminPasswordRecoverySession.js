@@ -31,13 +31,6 @@ function normalizePasswordRecoverySession(value) {
       ? value.resendAvailableAt
       : null;
 
-  const verifiedOtp =
-    userId &&
-    typeof value?.verifiedOtp === "string" &&
-    /^\d{6}$/.test(value.verifiedOtp)
-      ? value.verifiedOtp
-      : null;
-
   const shouldInferLegacyPhase = value?.phase == null;
 
   const phase = getSafeAdminPasswordRecoveryPhase(
@@ -45,7 +38,6 @@ function normalizePasswordRecoverySession(value) {
       email,
       userId,
       resendAvailableAt,
-      verifiedOtp,
       phase: value?.phase,
     },
     {
@@ -58,7 +50,6 @@ function normalizePasswordRecoverySession(value) {
       email,
       userId: null,
       resendAvailableAt: null,
-      verifiedOtp: null,
       phase,
     };
   }
@@ -67,10 +58,6 @@ function normalizePasswordRecoverySession(value) {
     email,
     userId,
     resendAvailableAt,
-    verifiedOtp:
-      phase === ADMIN_PASSWORD_RECOVERY_PHASE.CODE_VERIFIED
-        ? verifiedOtp
-        : null,
     phase,
   };
 }
@@ -92,6 +79,13 @@ export function readAdminPasswordRecoverySession() {
     if (!normalizedSession) {
       clearAdminPasswordRecoverySession();
       return null;
+    }
+
+    if (Object.hasOwn(parsedValue, "verifiedOtp")) {
+      window.sessionStorage.setItem(
+        ADMIN_PASSWORD_RECOVERY_SESSION_KEY,
+        JSON.stringify(normalizedSession)
+      );
     }
 
     return normalizedSession;

@@ -5,6 +5,7 @@ import PageBreadcrumb from "../../components/common/PageBreadcrumb.jsx";
 import CustomerStatusModal from "../../components/customers/CustomerStatusModal.jsx";
 import CustomersTable from "../../components/customers/CustomersTable.jsx";
 import CustomersToolbar from "../../components/customers/CustomersToolbar.jsx";
+import { selectAdminSessionGeneration } from "../../features/auth/authSlice.js";
 import {
   changeCustomerStatusThunk,
   clearCustomersListRefreshRequirement,
@@ -16,7 +17,6 @@ import {
   getPendingCustomersListRequest,
   requestCustomersListRefresh,
   requestCustomersListThunk,
-  resetCustomerMutationRequestStates,
   selectCustomers,
   selectCustomersListError,
   selectCustomersListRefreshRequirement,
@@ -352,7 +352,7 @@ function CustomersPage() {
 
   useEffect(() => {
     return () => {
-      dispatch(resetCustomerMutationRequestStates());
+      dispatch(clearCustomerStatusRequestFeedback());
     };
   }, [dispatch]);
 
@@ -405,9 +405,14 @@ function CustomersPage() {
 
     const customerId = getCustomerId(statusCustomer);
     const nextIsActive = statusCustomer.isActive === false;
+    const sessionGeneration = selectAdminSessionGeneration(store.getState());
     const resultAction = await dispatch(
       changeCustomerStatusThunk({ customerId, nextIsActive })
     );
+
+    if (selectAdminSessionGeneration(store.getState()) !== sessionGeneration) {
+      return;
+    }
 
     if (!changeCustomerStatusThunk.fulfilled.match(resultAction)) {
       if (isRedundantStatusResponse(resultAction.payload)) {

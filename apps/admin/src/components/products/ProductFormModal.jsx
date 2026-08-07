@@ -268,8 +268,8 @@ function ProductFormModal({
                     id={priceInputId}
                     type="number"
                     inputMode="decimal"
-                    min="0.01"
-                    step="0.01"
+                    min="0"
+                    step="1"
                     placeholder="0.00"
                     error={Boolean(priceError)}
                     hint={priceError}
@@ -292,7 +292,7 @@ function ProductFormModal({
                     type="number"
                     inputMode="decimal"
                     min="0"
-                    step="0.01"
+                    step="1"
                     placeholder="0.00"
                     error={Boolean(originalPriceError)}
                     hint={
@@ -316,7 +316,7 @@ function ProductFormModal({
                     id={stockInputId}
                     type="number"
                     inputMode="numeric"
-                    min={isEditMode ? "0" : "1"}
+                    min="0"
                     step="1"
                     placeholder={isEditMode ? "0" : "1"}
                     error={Boolean(stockError)}

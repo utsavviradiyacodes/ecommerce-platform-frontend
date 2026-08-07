@@ -11,6 +11,7 @@ import XIcon from "./social/x.svg?react";
 import PencilIcon from "./ui/pencil.svg?react";
 import TrashIcon from "./ui/trash.svg?react";
 import SearchIcon from "./ui/search.svg?react";
+import ChevronLeftIcon from "./ui/chevron-left.svg?react";
 
 export {
   GridIcon,
@@ -26,4 +27,5 @@ export {
   PencilIcon,
   TrashIcon,
   SearchIcon,
+  ChevronLeftIcon,
 };

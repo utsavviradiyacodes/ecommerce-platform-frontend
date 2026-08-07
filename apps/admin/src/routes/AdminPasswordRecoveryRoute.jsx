@@ -4,9 +4,11 @@ import { matchPath, Navigate, Outlet, useLocation } from "react-router";
 
 import {
   completeAdminPasswordRecoveryNavigation,
+  endAdminPasswordResetSecretSession,
   repairAdminPasswordRecoveryState,
   selectAdminPasswordRecovery,
 } from "../features/auth/authSlice.js";
+import { getAdminPasswordResetSecretExpiresAt } from "../features/auth/adminPasswordResetSecret.js";
 import {
   ADMIN_PASSWORD_RECOVERY_PHASE,
   getSafeAdminPasswordRecoveryPhase,
@@ -99,14 +101,76 @@ function AdminPasswordRecoveryRoute() {
   const safePhase = getSafeAdminPasswordRecoveryPhase(passwordRecovery);
   const isRecoveryStateValid =
     isAdminPasswordRecoveryStateValid(passwordRecovery);
+  const isVerifiedRecoverySession =
+    safePhase === ADMIN_PASSWORD_RECOVERY_PHASE.CODE_VERIFIED &&
+    isRecoveryStateValid;
+  const resetSecretExpiresAt = isVerifiedRecoverySession
+    ? getAdminPasswordResetSecretExpiresAt(passwordRecovery.userId)
+    : null;
+  const isResetSecretMissing =
+    isVerifiedRecoverySession && resetSecretExpiresAt === null;
+  const routablePhase = isResetSecretMissing
+    ? ADMIN_PASSWORD_RECOVERY_PHASE.CODE_REQUESTED
+    : safePhase;
 
-  const redirectPath = getRecoveryRedirect(matchedRoute?.id, safePhase);
+  const redirectPath = getRecoveryRedirect(matchedRoute?.id, routablePhase);
 
   useEffect(() => {
     if (!isRecoveryStateValid) {
       dispatch(repairAdminPasswordRecoveryState());
     }
   }, [dispatch, isRecoveryStateValid]);
+
+  useEffect(() => {
+    if (isResetSecretMissing) {
+      dispatch(endAdminPasswordResetSecretSession());
+    }
+  }, [dispatch, isResetSecretMissing]);
+
+  useEffect(() => {
+    if (!isVerifiedRecoverySession || resetSecretExpiresAt === null) {
+      return undefined;
+    }
+
+    let timeoutId = null;
+    let isCancelled = false;
+
+    function scheduleExpiryCheck(expiresAt) {
+      const remainingDuration = Math.max(0, expiresAt - Date.now());
+
+      timeoutId = window.setTimeout(() => {
+        if (isCancelled) {
+          return;
+        }
+
+        const currentExpiresAt = getAdminPasswordResetSecretExpiresAt(
+          passwordRecovery.userId
+        );
+
+        if (currentExpiresAt === null) {
+          dispatch(endAdminPasswordResetSecretSession());
+          return;
+        }
+
+        scheduleExpiryCheck(currentExpiresAt);
+      }, remainingDuration);
+    }
+
+    scheduleExpiryCheck(resetSecretExpiresAt);
+
+    return () => {
+      isCancelled = true;
+
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [
+    dispatch,
+    isVerifiedRecoverySession,
+    passwordRecovery.userId,
+    resetSecretExpiresAt,
+  ]);
 
   useEffect(() => {
     if (

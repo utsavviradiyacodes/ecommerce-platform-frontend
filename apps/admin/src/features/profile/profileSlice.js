@@ -42,7 +42,8 @@ function isAnyProfileRequestPending(profileState) {
   );
 }
 
-function canSynchronizeCurrentAdmin(
+function synchronizeCurrentAdminIfOwned(
+  dispatch,
   getState,
   requestKey,
   requestId,
@@ -53,14 +54,22 @@ function canSynchronizeCurrentAdmin(
   const requestState = state.profile?.requests?.[requestKey];
   const currentAdminId = state.auth?.admin?._id;
   const responseAdminId = responseAdmin?._id;
+  const isRequestOwned =
+    Boolean(requestState) && isRequestStateOwnedBy(requestState, requestId);
 
-  return (
-    Boolean(requestState) &&
-    isRequestStateOwnedBy(requestState, requestId) &&
-    typeof currentAdminId === "string" &&
-    typeof responseAdminId === "string" &&
-    currentAdminId === responseAdminId
-  );
+  if (!isRequestOwned) {
+    return;
+  }
+
+  if (
+    typeof currentAdminId !== "string" ||
+    typeof responseAdminId !== "string" ||
+    currentAdminId !== responseAdminId
+  ) {
+    throw new Error("Received an unexpected profile response.");
+  }
+
+  dispatch(synchronizeCurrentAdmin(responseAdmin));
 }
 
 // -----------------------------------------------------------------------------
@@ -73,11 +82,13 @@ export const fetchAdminProfileThunk = createAsyncThunk(
     try {
       const response = await getAdminProfile({ signal });
 
-      if (
-        canSynchronizeCurrentAdmin(getState, "fetch", requestId, response.data)
-      ) {
-        dispatch(synchronizeCurrentAdmin(response.data));
-      }
+      synchronizeCurrentAdminIfOwned(
+        dispatch,
+        getState,
+        "fetch",
+        requestId,
+        response.data
+      );
 
       return response;
     } catch (error) {
@@ -105,11 +116,13 @@ export const updateAdminProfileThunk = createAsyncThunk(
     try {
       const response = await updateAdminProfile(formData);
 
-      if (
-        canSynchronizeCurrentAdmin(getState, "update", requestId, response.data)
-      ) {
-        dispatch(synchronizeCurrentAdmin(response.data));
-      }
+      synchronizeCurrentAdminIfOwned(
+        dispatch,
+        getState,
+        "update",
+        requestId,
+        response.data
+      );
 
       return response;
     } catch (error) {
@@ -137,16 +150,13 @@ export const deleteAdminAvatarThunk = createAsyncThunk(
     try {
       const response = await deleteAdminAvatar();
 
-      if (
-        canSynchronizeCurrentAdmin(
-          getState,
-          "deleteAvatar",
-          requestId,
-          response.data
-        )
-      ) {
-        dispatch(synchronizeCurrentAdmin(response.data));
-      }
+      synchronizeCurrentAdminIfOwned(
+        dispatch,
+        getState,
+        "deleteAvatar",
+        requestId,
+        response.data
+      );
 
       return response;
     } catch (error) {
@@ -179,6 +189,10 @@ const profileSlice = createSlice({
 
     clearProfileAvatarDeleteRequestFeedback(state) {
       clearRequestFeedback(state.requests.deleteAvatar);
+    },
+
+    resetProfileFetchRequestState(state) {
+      resetRequestState(state.requests.fetch);
     },
 
     resetProfileState() {
@@ -340,6 +354,7 @@ export const {
   clearProfileFetchRequestFeedback,
   clearProfileUpdateRequestFeedback,
   clearProfileAvatarDeleteRequestFeedback,
+  resetProfileFetchRequestState,
   resetProfileState,
 } = profileSlice.actions;
 

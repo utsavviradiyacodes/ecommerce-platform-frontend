@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useDispatch, useSelector } from "react-redux";
-import { Link, useLocation } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 
 import Label from "../../components/form/Label.jsx";
 import InputField from "../../components/form/input/InputField.jsx";
@@ -10,28 +10,49 @@ import Button from "../../components/ui/button/Button.jsx";
 import AuthFormContainer from "../../components/layout/auth/AuthFormContainer.jsx";
 
 import {
+  abandonAdminSignInRequest,
+  clearAdminEmailVerificationState,
   clearAdminSignInRequestFeedback,
   consumeAdminPasswordResetSuccessMessage,
+  consumeAdminSessionInvalidationNotice,
+  createAdminSignInRequestId,
   selectAdminPasswordRecovery,
   selectAdminPasswordResetCompletionMessage,
+  selectAdminSessionInvalidationNotice,
   selectAdminSignInError,
   selectIsAdminSignInPending,
+  setAdminEmailVerificationContext,
   setAdminPasswordRecoveryEmail,
+  signInAdminFailed,
   signInAdminThunk,
 } from "../../features/auth/authSlice.js";
+import { ADMIN_AUTH_REJECTION_KIND } from "../../features/auth/adminEmailVerificationConstants.js";
 
 import { EyeCloseIcon, EyeIcon, GoogleIcon, XIcon } from "../../icons/index.js";
 
 import { signInSchema } from "../../schemas/auth/signInSchema.js";
+import {
+  clearAdminEmailVerificationSession,
+  createAdminEmailVerificationSession,
+  writeAdminEmailVerificationSession,
+} from "../../utils/storage/adminEmailVerificationSession.js";
 
 function SignInPage() {
   const dispatch = useDispatch();
   const location = useLocation();
+  const navigate = useNavigate();
+
+  const isCurrentPageRef = useRef(false);
+  const activeSignInRequestIdRef = useRef(null);
 
   const [showPassword, setShowPassword] = useState(false);
 
   const passwordResetCompletionMessage = useSelector(
     selectAdminPasswordResetCompletionMessage
+  );
+
+  const sessionInvalidationMessage = useSelector(
+    selectAdminSessionInvalidationNotice
   );
 
   const [passwordResetSuccessNotice, setPasswordResetSuccessNotice] = useState(
@@ -49,6 +70,30 @@ function SignInPage() {
       ? passwordResetSuccessNotice.message
       : null;
 
+  const [sessionInvalidationNotice, setSessionInvalidationNotice] = useState(
+    () =>
+      sessionInvalidationMessage
+        ? {
+            entryKey: location.key,
+            message: sessionInvalidationMessage,
+          }
+        : null
+  );
+
+  const visibleSessionInvalidationMessage =
+    sessionInvalidationNotice?.entryKey === location.key
+      ? sessionInvalidationNotice.message
+      : null;
+
+  const [emailVerificationSessionNotice, setEmailVerificationSessionNotice] =
+    useState(() => {
+      const message = location.state?.emailVerificationNotice;
+
+      return typeof message === "string" && message.trim()
+        ? message.trim()
+        : null;
+    });
+
   const { email: savedEmail } = useSelector(selectAdminPasswordRecovery);
 
   const isAdminSignInPending = useSelector(selectIsAdminSignInPending);
@@ -59,6 +104,7 @@ function SignInPage() {
     register,
     handleSubmit,
     getValues,
+    resetField,
     formState: { errors },
   } = useForm({
     resolver: zodResolver(signInSchema),
@@ -70,7 +116,21 @@ function SignInPage() {
   });
 
   useEffect(() => {
+    isCurrentPageRef.current = true;
+    clearAdminEmailVerificationSession();
+    dispatch(clearAdminEmailVerificationState());
     dispatch(clearAdminSignInRequestFeedback());
+
+    return () => {
+      isCurrentPageRef.current = false;
+
+      const requestId = activeSignInRequestIdRef.current;
+      activeSignInRequestIdRef.current = null;
+
+      if (requestId) {
+        dispatch(abandonAdminSignInRequest({ requestId }));
+      }
+    };
   }, [dispatch]);
 
   useEffect(() => {
@@ -94,14 +154,83 @@ function SignInPage() {
     );
   }, [dispatch, location.key, passwordResetCompletionMessage]);
 
+  useEffect(() => {
+    if (sessionInvalidationMessage) {
+      // Capture the one-shot Redux notice on this Sign In history entry before
+      // consuming it, so ordinary rerenders keep it visible without replaying
+      // it after this page instance is left.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSessionInvalidationNotice({
+        entryKey: location.key,
+        message: sessionInvalidationMessage,
+      });
+      dispatch(consumeAdminSessionInvalidationNotice());
+      return;
+    }
+
+    setSessionInvalidationNotice((currentNotice) =>
+      currentNotice?.entryKey === location.key ? currentNotice : null
+    );
+  }, [dispatch, location.key, sessionInvalidationMessage]);
+
   function dismissSignInFeedback() {
     setPasswordResetSuccessNotice(null);
+    setSessionInvalidationNotice(null);
+    setEmailVerificationSessionNotice(null);
     dispatch(clearAdminSignInRequestFeedback());
   }
 
-  function handleSignIn(formData) {
+  async function handleSignIn(formData) {
     dismissSignInFeedback();
-    dispatch(signInAdminThunk(formData));
+
+    const normalizedEmail = formData.email.trim().toLowerCase();
+    const requestId = createAdminSignInRequestId();
+
+    activeSignInRequestIdRef.current = requestId;
+
+    const resultAction = await dispatch(
+      signInAdminThunk(
+        {
+          email: normalizedEmail,
+          password: formData.password,
+        },
+        { requestId }
+      )
+    );
+
+    if (
+      !isCurrentPageRef.current ||
+      activeSignInRequestIdRef.current !== requestId
+    ) {
+      return;
+    }
+
+    activeSignInRequestIdRef.current = null;
+
+    if (
+      !signInAdminFailed.match(resultAction) ||
+      resultAction.payload?.kind !==
+        ADMIN_AUTH_REJECTION_KIND.EMAIL_VERIFICATION_REQUIRED
+    ) {
+      return;
+    }
+
+    const verificationSession = createAdminEmailVerificationSession(
+      resultAction.payload.verificationContext
+    );
+
+    if (!verificationSession) {
+      return;
+    }
+
+    resetField("password", { defaultValue: "" });
+    writeAdminEmailVerificationSession(verificationSession);
+    dispatch(setAdminEmailVerificationContext(verificationSession));
+    navigate("/admin/verify-email", { replace: true });
+  }
+
+  function handleSignInSubmit(event) {
+    return handleSubmit(handleSignIn)(event);
   }
 
   function handleOpenForgotPassword() {
@@ -160,7 +289,7 @@ function SignInPage() {
 
       <form
         className="space-y-5"
-        onSubmit={handleSubmit(handleSignIn)}
+        onSubmit={handleSignInSubmit}
         onFocusCapture={dismissSignInFeedback}
         onChangeCapture={dismissSignInFeedback}
         noValidate
@@ -251,6 +380,26 @@ function SignInPage() {
             className="rounded-lg border border-success-200 bg-success-50 px-4 py-3 text-sm text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400"
           >
             {passwordResetSuccessMessage}
+          </p>
+        )}
+
+        {emailVerificationSessionNotice && (
+          <p
+            role="status"
+            aria-live="polite"
+            className="rounded-lg border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400"
+          >
+            {emailVerificationSessionNotice}
+          </p>
+        )}
+
+        {visibleSessionInvalidationMessage && (
+          <p
+            role="status"
+            aria-live="polite"
+            className="rounded-lg border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400"
+          >
+            {visibleSessionInvalidationMessage}
           </p>
         )}
 

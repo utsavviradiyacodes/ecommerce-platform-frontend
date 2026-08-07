@@ -20,6 +20,9 @@ import {
 
 export const CUSTOMERS_PAGE_SIZE = 10;
 
+const UNEXPECTED_CUSTOMER_RESPONSE_MESSAGE =
+  "Received an unexpected Customer list response.";
+
 const pendingCustomersListRequests = new Map();
 let customersListRequestSequence = 0;
 
@@ -95,27 +98,68 @@ function getTargetActiveStatus(argument) {
     : null;
 }
 
-function normalizeCustomersListResponse(response, fallbackPage) {
-  const data = response?.data ?? {};
-  const customers = Array.isArray(data.customers) ? data.customers : [];
-  const parsedTotal = Number(data.total);
-  const parsedPage = Number(data.page);
-  const parsedTotalPages = Number(data.totalPages);
+function isNonArrayObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isUsableText(value) {
+  return typeof value === "string" && Boolean(value.trim());
+}
+
+function parseSupportedInteger(value, { positive = false } = {}) {
+  const normalizedValue =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && /^\d+$/.test(value.trim())
+        ? Number(value.trim())
+        : Number.NaN;
+
+  if (
+    !Number.isFinite(normalizedValue) ||
+    !Number.isInteger(normalizedValue) ||
+    (positive ? normalizedValue < 1 : normalizedValue < 0)
+  ) {
+    return null;
+  }
+
+  return normalizedValue;
+}
+
+function isUsableCustomer(value) {
+  return (
+    isNonArrayObject(value) &&
+    Boolean(getCustomerId(value)) &&
+    isUsableText(value.name) &&
+    isUsableText(value.email)
+  );
+}
+
+function normalizeCustomersListResponse(response) {
+  const data = response?.data;
+  const customers = data?.customers;
+  const total = parseSupportedInteger(data?.total);
+  const page = parseSupportedInteger(data?.page, { positive: true });
+  const totalPages = parseSupportedInteger(data?.totalPages, {
+    positive: true,
+  });
+
+  if (
+    response?.success !== true ||
+    !isNonArrayObject(data) ||
+    !Array.isArray(customers) ||
+    !customers.every(isUsableCustomer) ||
+    total === null ||
+    page === null ||
+    totalPages === null
+  ) {
+    throw new Error(UNEXPECTED_CUSTOMER_RESPONSE_MESSAGE);
+  }
 
   return {
     customers,
-    total:
-      Number.isFinite(parsedTotal) && parsedTotal >= 0
-        ? parsedTotal
-        : customers.length,
-    page:
-      Number.isInteger(parsedPage) && parsedPage > 0
-        ? parsedPage
-        : fallbackPage,
-    totalPages:
-      Number.isInteger(parsedTotalPages) && parsedTotalPages > 0
-        ? parsedTotalPages
-        : 1,
+    total,
+    page,
+    totalPages,
   };
 }
 
@@ -150,7 +194,12 @@ export const fetchCustomersThunk = createAsyncThunk(
 
     try {
       const response = await getCustomers(query);
-      return { response, query, queryKey };
+      return {
+        normalizedList: normalizeCustomersListResponse(response),
+        response,
+        query,
+        queryKey,
+      };
     } catch (error) {
       return rejectWithValue(
         getApiErrorMessage(error, "Unable to load customers. Please try again.")
@@ -304,10 +353,7 @@ const customersSlice = createSlice({
           return;
         }
 
-        const normalizedList = normalizeCustomersListResponse(
-          action.payload.response,
-          action.payload.query.page
-        );
+        const normalizedList = action.payload.normalizedList;
 
         state.customers = normalizedList.customers;
         state.total = normalizedList.total;
@@ -411,6 +457,13 @@ export function getPendingCustomersListRequest(options = {}) {
   return (
     pendingCustomersListRequests.get(resolveCustomersQueryKey(options)) ?? null
   );
+}
+
+export function abortAndClearPendingCustomersListRequests() {
+  const pendingRequests = Array.from(pendingCustomersListRequests.values());
+
+  pendingCustomersListRequests.clear();
+  pendingRequests.forEach((request) => request.promise?.abort?.());
 }
 
 export function requestCustomersListThunk(options = {}) {

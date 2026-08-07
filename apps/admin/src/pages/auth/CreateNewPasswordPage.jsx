@@ -24,9 +24,7 @@ import { createNewPasswordSchema } from "../../schemas/auth/createNewPasswordSch
 function CreateNewPasswordPage() {
   const dispatch = useDispatch();
 
-  const { email, userId, verifiedOtp } = useSelector(
-    selectAdminPasswordRecovery
-  );
+  const { email } = useSelector(selectAdminPasswordRecovery);
 
   const isPasswordResetPending = useSelector(selectIsAdminPasswordResetPending);
 
@@ -58,14 +56,7 @@ function CreateNewPasswordPage() {
   }
 
   function handleCreateNewPassword(formData) {
-    dispatch(
-      resetAdminPasswordThunk({
-        userId,
-        otp: verifiedOtp,
-        newPassword: formData.newPassword,
-        confirmNewPassword: formData.confirmNewPassword,
-      })
-    );
+    dispatch(resetAdminPasswordThunk(formData));
   }
 
   return (

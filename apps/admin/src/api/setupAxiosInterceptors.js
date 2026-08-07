@@ -2,11 +2,13 @@ import { refreshAdminAccessToken } from "../features/auth/authApi.js";
 import {
   invalidateAdminSession,
   selectAdminAccessToken,
+  selectAdminSessionGeneration,
   setAdminAccessToken,
 } from "../features/auth/authSlice.js";
 import axiosInstance from "./axiosInstance.js";
 
 const ADMIN_AUTH_RETRY_FLAG = "_adminAuthRetryAttempted";
+const ADMIN_AUTH_SESSION_GENERATION_FIELD = "_adminAuthSessionGeneration";
 const ADMIN_SESSION_CHANGED_DURING_REFRESH_MESSAGE =
   "The admin session changed while refreshing.";
 
@@ -59,13 +61,29 @@ function setAuthorizationHeader(config, accessToken) {
   };
 }
 
-function isRefreshOwnedByCurrentSession(store, accessToken) {
-  return selectAdminAccessToken(store.getState()) === accessToken;
+function isRefreshOwnedByCurrentSession(
+  store,
+  accessToken,
+  sessionGeneration
+) {
+  const rootState = store.getState();
+
+  return (
+    selectAdminAccessToken(rootState) === accessToken &&
+    selectAdminSessionGeneration(rootState) === sessionGeneration
+  );
 }
 
-function getAdminAccessTokenRefreshPromise(store, accessToken) {
+function getAdminAccessTokenRefreshPromise(
+  store,
+  accessToken,
+  sessionGeneration
+) {
   if (adminAccessTokenRefreshOperation) {
-    if (adminAccessTokenRefreshOperation.accessToken !== accessToken) {
+    if (
+      adminAccessTokenRefreshOperation.accessToken !== accessToken ||
+      adminAccessTokenRefreshOperation.sessionGeneration !== sessionGeneration
+    ) {
       return Promise.reject(
         new Error(ADMIN_SESSION_CHANGED_DURING_REFRESH_MESSAGE)
       );
@@ -76,12 +94,19 @@ function getAdminAccessTokenRefreshPromise(store, accessToken) {
 
   const refreshOperation = {
     accessToken,
+    sessionGeneration,
     promise: null,
   };
 
   refreshOperation.promise = refreshAdminAccessToken()
     .then((response) => {
-      if (!isRefreshOwnedByCurrentSession(store, accessToken)) {
+      if (
+        !isRefreshOwnedByCurrentSession(
+          store,
+          accessToken,
+          sessionGeneration
+        )
+      ) {
         throw new Error(ADMIN_SESSION_CHANGED_DURING_REFRESH_MESSAGE);
       }
 
@@ -92,7 +117,11 @@ function getAdminAccessTokenRefreshPromise(store, accessToken) {
     .catch((error) => {
       if (
         error?.response?.status === 401 &&
-        isRefreshOwnedByCurrentSession(store, accessToken)
+        isRefreshOwnedByCurrentSession(
+          store,
+          accessToken,
+          sessionGeneration
+        )
       ) {
         store.dispatch(invalidateAdminSession());
       }
@@ -116,15 +145,24 @@ export function setupAxiosInterceptors(store) {
       const rootState = store.getState();
 
       const adminAccessToken = selectAdminAccessToken(rootState);
+      const adminSessionGeneration =
+        selectAdminSessionGeneration(rootState);
 
       if (
         config[ADMIN_AUTH_RETRY_FLAG] === true &&
-        (!isNonEmptyAccessToken(adminAccessToken) ||
+        (config[ADMIN_AUTH_SESSION_GENERATION_FIELD] !==
+          adminSessionGeneration ||
+          !isNonEmptyAccessToken(adminAccessToken) ||
           readBearerAccessToken(config) !== adminAccessToken)
       ) {
         return Promise.reject(
           new Error(ADMIN_SESSION_CHANGED_DURING_REFRESH_MESSAGE)
         );
+      }
+
+      if (config[ADMIN_AUTH_RETRY_FLAG] !== true) {
+        config[ADMIN_AUTH_SESSION_GENERATION_FIELD] =
+          adminSessionGeneration;
       }
 
       if (adminAccessToken) {
@@ -142,15 +180,20 @@ export function setupAxiosInterceptors(store) {
     (response) => response,
     async (error) => {
       const originalRequest = error?.config;
-      const currentAccessToken = selectAdminAccessToken(store.getState());
+      const rootState = store.getState();
+      const currentAccessToken = selectAdminAccessToken(rootState);
+      const currentSessionGeneration =
+        selectAdminSessionGeneration(rootState);
       const originalRequestAccessToken = readBearerAccessToken(originalRequest);
+      const originalRequestSessionGeneration =
+        originalRequest?.[ADMIN_AUTH_SESSION_GENERATION_FIELD];
       const shouldAttemptAdminAccessTokenRefresh =
         error?.response?.status === 401 &&
         originalRequest &&
         originalRequest.skipAuthRefresh !== true &&
         originalRequest[ADMIN_AUTH_RETRY_FLAG] !== true &&
         isNonEmptyAccessToken(currentAccessToken) &&
-        originalRequestAccessToken === currentAccessToken;
+        originalRequestSessionGeneration === currentSessionGeneration;
 
       if (!shouldAttemptAdminAccessTokenRefresh) {
         return Promise.reject(error);
@@ -158,13 +201,26 @@ export function setupAxiosInterceptors(store) {
 
       originalRequest[ADMIN_AUTH_RETRY_FLAG] = true;
 
+      if (originalRequestAccessToken !== currentAccessToken) {
+        setAuthorizationHeader(originalRequest, currentAccessToken);
+
+        return axiosInstance(originalRequest);
+      }
+
       try {
         const accessToken = await getAdminAccessTokenRefreshPromise(
           store,
-          originalRequestAccessToken
+          originalRequestAccessToken,
+          originalRequestSessionGeneration
         );
 
-        if (!isRefreshOwnedByCurrentSession(store, accessToken)) {
+        if (
+          !isRefreshOwnedByCurrentSession(
+            store,
+            accessToken,
+            originalRequestSessionGeneration
+          )
+        ) {
           return Promise.reject(error);
         }
 

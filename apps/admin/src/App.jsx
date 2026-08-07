@@ -28,12 +28,14 @@ import SignInPage from "./pages/auth/SignInPage.jsx";
 import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage.jsx";
 import CreateNewPasswordPage from "./pages/auth/CreateNewPasswordPage.jsx";
 import VerifyResetCodePage from "./pages/auth/VerifyResetCodePage.jsx";
+import VerifyEmailPage from "./pages/auth/VerifyEmailPage.jsx";
 import NotFoundPage from "./pages/errors/NotFoundPage.jsx";
 import UnauthorizedPage from "./pages/errors/UnauthorizedPage.jsx";
 
 import { ADMIN_PERMISSIONS } from "./constants/adminPermissions.js";
 
 import PublicOnlyRoute from "./routes/PublicOnlyRoute.jsx";
+import AdminEmailVerificationRoute from "./routes/AdminEmailVerificationRoute.jsx";
 import AdminPasswordRecoveryRoute from "./routes/AdminPasswordRecoveryRoute.jsx";
 import ProtectedRoute from "./routes/ProtectedRoute.jsx";
 import PermissionRoute from "./routes/PermissionRoute.jsx";
@@ -75,6 +77,13 @@ function App() {
 
   return (
     <Routes>
+      {/* New-account email verification has its own guarded workflow */}
+      <Route element={<AdminEmailVerificationRoute />}>
+        <Route element={<AuthLayout />}>
+          <Route path="/admin/verify-email" element={<VerifyEmailPage />} />
+        </Route>
+      </Route>
+
       {/* Public-only authentication routes */}
       <Route element={<PublicOnlyRoute />}>
         <Route element={<AdminPasswordRecoveryRoute />}>

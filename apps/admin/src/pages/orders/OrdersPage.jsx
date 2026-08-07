@@ -1,27 +1,39 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 
 import PageBreadcrumb from "../../components/common/PageBreadcrumb.jsx";
+import RefreshDataButton from "../../components/common/RefreshDataButton.jsx";
 import OrderDetailsModal from "../../components/orders/OrderDetailsModal.jsx";
 import OrdersTable from "../../components/orders/OrdersTable.jsx";
 import OrdersToolbar from "../../components/orders/OrdersToolbar.jsx";
-import Button from "../../components/ui/button/Button.jsx";
-import { selectCurrentAdmin } from "../../features/auth/authSlice.js";
 import {
   clearOrderDetails,
+  createOrdersQueryKey,
   fetchOrderDetailsThunk,
-  fetchOrdersInventoryThunk,
+  fetchOrdersThunk,
+  fetchOrderStatsThunk,
   ORDERS_PAGE_SIZE,
   ORDER_STATUS_KEYS,
   selectIsOrderDetailsPending,
-  selectIsOrdersInventoryPending,
+  selectIsOrdersListPending,
+  selectIsOrderStatsPending,
   selectOrderDetails,
   selectOrderDetailsError,
   selectOrderDetailsOrderId,
   selectOrders,
-  selectOrdersCoverage,
-  selectOrdersInventoryError,
+  selectOrdersListError,
+  selectOrdersListIsStale,
+  selectOrdersListLoadedAt,
+  selectOrdersListStatus,
+  selectOrdersLoadedQueryKey,
+  selectOrdersPagination,
+  selectOrdersRequestedQueryKey,
+  selectOrderStats,
+  selectOrderStatsError,
+  selectOrderStatsIsStale,
+  selectOrderStatsLoadedAt,
 } from "../../features/orders/ordersSlice.js";
+import { REQUEST_STATUS } from "../../utils/redux/requestState.js";
 
 const EMPTY_VALUE = "\u2014";
 
@@ -80,7 +92,9 @@ function PageFeedback({ tone = "warning", children, actionLabel, onAction }) {
       role={tone === "error" ? "alert" : "status"}
       className={`mb-5 flex min-w-0 flex-col gap-3 rounded-xl border px-4 py-4 sm:flex-row sm:items-start sm:justify-between ${toneClasses.container}`}
     >
-      <div className={`min-w-0 flex-1 break-words text-sm ${toneClasses.text}`}>
+      <div
+        className={`min-w-0 flex-1 wrap-break-word text-sm ${toneClasses.text}`}
+      >
         {children}
       </div>
       {actionLabel && onAction && (
@@ -93,32 +107,6 @@ function PageFeedback({ tone = "warning", children, actionLabel, onAction }) {
         </button>
       )}
     </div>
-  );
-}
-
-function RefreshIcon({ isSpinning = false }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      className={`size-4 ${isSpinning ? "animate-spin" : ""}`}
-      aria-hidden="true"
-    >
-      <path
-        d="M20 7V3M20 3H16M20 3L16.8 6.2C15.52 4.92 13.76 4.12 11.8 4.12C7.9 4.12 4.75 7.28 4.75 11.17"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M4 17V21M4 21H8M4 21L7.2 17.8C8.48 19.08 10.24 19.88 12.2 19.88C16.1 19.88 19.25 16.72 19.25 12.83"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
   );
 }
 
@@ -138,22 +126,16 @@ function getEntityId(entity) {
   return normalizeText(entity?._id ?? entity?.id);
 }
 
-function getNonNegativeNumber(value) {
-  if (
-    value === null ||
-    value === undefined ||
-    (typeof value === "string" && !value.trim())
-  ) {
+function getNonNegativeNumber(value, { integer = false } = {}) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
     return null;
   }
 
-  const number = Number(value);
-
-  return Number.isFinite(number) && number >= 0 ? number : null;
+  return integer && !Number.isSafeInteger(value) ? null : value;
 }
 
 function formatCount(value) {
-  const number = getNonNegativeNumber(value);
+  const number = getNonNegativeNumber(value, { integer: true });
 
   return number === null ? EMPTY_VALUE : countFormatter.format(number);
 }
@@ -178,42 +160,12 @@ function formatLoadedAt(value) {
     : loadedAtFormatter.format(date);
 }
 
-function getCreatedAtTimestamp(order) {
-  const createdAt = normalizeText(order?.createdAt);
-
-  if (!createdAt) {
-    return null;
-  }
-
-  const timestamp = new Date(createdAt).getTime();
-
-  return Number.isNaN(timestamp) ? null : timestamp;
-}
-
-function compareOrdersByNewest(firstOrder, secondOrder) {
-  const firstTimestamp = getCreatedAtTimestamp(firstOrder);
-  const secondTimestamp = getCreatedAtTimestamp(secondOrder);
-
-  if (firstTimestamp === null && secondTimestamp !== null) {
-    return 1;
-  }
-
-  if (firstTimestamp !== null && secondTimestamp === null) {
-    return -1;
-  }
-
-  if (
-    firstTimestamp !== null &&
-    secondTimestamp !== null &&
-    firstTimestamp !== secondTimestamp
-  ) {
-    return secondTimestamp - firstTimestamp;
-  }
-
-  return getEntityId(firstOrder).localeCompare(getEntityId(secondOrder));
-}
-
-function SummaryMetric({ label, value, isLoading = false, emphasized = false }) {
+function SummaryMetric({
+  label,
+  value,
+  isLoading = false,
+  emphasized = false,
+}) {
   return (
     <div className="min-w-0 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-white/2">
       <p className="text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">
@@ -223,7 +175,7 @@ function SummaryMetric({ label, value, isLoading = false, emphasized = false }) 
         <div className="mt-2 h-7 w-20 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
       ) : (
         <p
-          className={`mt-2 break-words font-semibold text-gray-800 dark:text-white/90 ${
+          className={`mt-2 wrap-break-word font-semibold text-gray-800 dark:text-white/90 ${
             emphasized ? "text-2xl" : "text-xl"
           }`}
         >
@@ -234,28 +186,32 @@ function SummaryMetric({ label, value, isLoading = false, emphasized = false }) 
   );
 }
 
-function PlatformSummary({ expected, isLoading = false }) {
+function OrderSummary({ stats, isLoading = false }) {
+  const ordersByStatus =
+    stats?.ordersByStatus &&
+    typeof stats.ordersByStatus === "object" &&
+    !Array.isArray(stats.ordersByStatus)
+      ? stats.ordersByStatus
+      : null;
+
   return (
     <section className="mb-5 min-w-0 rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs sm:p-6 dark:border-gray-800 dark:bg-white/3">
       <div className="min-w-0">
         <h2 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-          Platform Order summary
+          Order summary
         </h2>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Platform-wide statistics reported by the Dashboard endpoint.
-        </p>
       </div>
 
       <div className="mt-5 grid min-w-0 grid-cols-2 gap-3 md:grid-cols-4">
         <SummaryMetric
-          label="Platform Orders"
-          value={formatCount(expected?.total)}
+          label="Total Orders"
+          value={formatCount(stats?.totalOrders)}
           isLoading={isLoading}
           emphasized
         />
         <SummaryMetric
           label="Paid revenue"
-          value={formatCurrency(expected?.totalRevenue)}
+          value={formatCurrency(stats?.totalRevenue)}
           isLoading={isLoading}
           emphasized
         />
@@ -263,7 +219,7 @@ function PlatformSummary({ expected, isLoading = false }) {
           <SummaryMetric
             key={status}
             label={STATUS_LABELS[status]}
-            value={formatCount(expected?.byStatus?.[status])}
+            value={formatCount(ordersByStatus?.[status])}
             isLoading={isLoading}
           />
         ))}
@@ -272,69 +228,22 @@ function PlatformSummary({ expected, isLoading = false }) {
   );
 }
 
-function PlatformSummaryUnavailable() {
-  return (
-    <section className="mb-5 min-w-0 rounded-xl border border-gray-200 bg-gray-50 px-4 py-4 dark:border-gray-800 dark:bg-white/2">
-      <h2 className="text-sm font-semibold text-gray-800 dark:text-white/90">
-        Platform summary unavailable
-      </h2>
-      <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-        This admin session can display the Seller-based Order records it can
-        enumerate, but the backend cannot independently verify platform-wide
-        Order statistics.
-      </p>
-    </section>
-  );
-}
-
-function CoverageWarning({ coverage }) {
-  const actual = coverage?.actual;
-  const coverageStatus = coverage?.status;
-
-  if (
-    !coverageStatus ||
-    coverageStatus === "idle" ||
-    coverageStatus === "matched" ||
-    coverageStatus === "mismatch" ||
-    coverage?.isStale ||
-    (coverageStatus === "partial" && !coverage?.loadedAt)
-  ) {
-    return null;
-  }
-
-  if (coverageStatus === "enumerated") {
-    return <PlatformSummaryUnavailable />;
-  }
-
-  const failedSellerCount = Array.isArray(coverage?.failedSellerIds)
-    ? coverage.failedSellerIds.length
-    : 0;
-
-  return (
-    <PageFeedback>
-      <p className="font-semibold">Partial order data</p>
-      <p className="mt-1">
-        The Seller-based Order inventory could not be reconstructed completely.
-        {actual
-          ? ` ${formatCount(actual.total)} available records are shown.`
-          : " The table may be unavailable or stale."}
-      </p>
-      {failedSellerCount > 0 && (
-        <p className="mt-2 text-xs">
-          {failedSellerCount} Seller request{failedSellerCount === 1 ? "" : "s"} failed during the latest refresh.
-        </p>
-      )}
-    </PageFeedback>
-  );
-}
-
 function OrdersPage() {
   const dispatch = useDispatch();
-  const currentAdmin = useSelector(selectCurrentAdmin);
   const orders = useSelector(selectOrders);
-  const coverage = useSelector(selectOrdersCoverage);
-  const inventoryError = useSelector(selectOrdersInventoryError);
-  const isInventoryPending = useSelector(selectIsOrdersInventoryPending);
+  const pagination = useSelector(selectOrdersPagination);
+  const requestedQueryKey = useSelector(selectOrdersRequestedQueryKey);
+  const loadedQueryKey = useSelector(selectOrdersLoadedQueryKey);
+  const listStatus = useSelector(selectOrdersListStatus);
+  const listError = useSelector(selectOrdersListError);
+  const listLoadedAt = useSelector(selectOrdersListLoadedAt);
+  const listIsStale = useSelector(selectOrdersListIsStale);
+  const isListPending = useSelector(selectIsOrdersListPending);
+  const stats = useSelector(selectOrderStats);
+  const statsError = useSelector(selectOrderStatsError);
+  const statsLoadedAt = useSelector(selectOrderStatsLoadedAt);
+  const statsIsStale = useSelector(selectOrderStatsIsStale);
+  const isStatsPending = useSelector(selectIsOrderStatsPending);
   const details = useSelector(selectOrderDetails);
   const detailsOrderId = useSelector(selectOrderDetailsOrderId);
   const detailsError = useSelector(selectOrderDetailsError);
@@ -347,89 +256,191 @@ function OrdersPage() {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 
-  const inventoryRequestRef = useRef(null);
-  const inventoryAbortTimerRef = useRef(null);
+  const listRequestRef = useRef(null);
+  const listAbortTimerRef = useRef(null);
+  const statsRequestRef = useRef(null);
+  const statsAbortTimerRef = useRef(null);
   const detailsRequestRef = useRef(null);
 
-  const hasLoadedInventory = Boolean(coverage.loadedAt);
-  const isInitialLoading = isInventoryPending && !hasLoadedInventory;
-  const hasInitialError = Boolean(inventoryError) && !hasLoadedInventory;
-  const hasStaleInventoryWarning =
-    Boolean(inventoryError) && coverage.isStale === true;
-  const isSuperAdmin = currentAdmin?.isSuperAdmin === true;
-
-  const filteredOrders = useMemo(() => {
-    return orders
-      .filter((order) => {
-        const normalizedOrderStatus = normalizeText(order?.orderStatus).toLowerCase();
-        const normalizedPaymentStatus = normalizeText(order?.paymentStatus).toLowerCase();
-        const normalizedPaymentMethod = normalizeText(order?.paymentMethod).toLowerCase();
-
-        return (
-          (!orderStatus || normalizedOrderStatus === orderStatus) &&
-          (!paymentStatus || normalizedPaymentStatus === paymentStatus) &&
-          (!paymentMethod || normalizedPaymentMethod === paymentMethod)
-        );
-      })
-      .sort(compareOrdersByNewest);
-  }, [orderStatus, orders, paymentMethod, paymentStatus]);
-
-  const totalPages = Math.max(
-    1,
-    Math.ceil(filteredOrders.length / ORDERS_PAGE_SIZE)
+  const currentQuery = useMemo(
+    () => ({
+      page: currentPage,
+      limit: ORDERS_PAGE_SIZE,
+      orderStatus,
+      paymentStatus,
+      paymentMethod,
+    }),
+    [currentPage, orderStatus, paymentMethod, paymentStatus]
   );
-  const visibleCurrentPage = Math.min(
-    Math.max(currentPage, 1),
-    totalPages
+  const currentQueryKey = useMemo(
+    () => createOrdersQueryKey(currentQuery),
+    [currentQuery]
   );
-
-  const visibleOrders = useMemo(() => {
-    const firstIndex = (visibleCurrentPage - 1) * ORDERS_PAGE_SIZE;
-
-    return filteredOrders.slice(firstIndex, firstIndex + ORDERS_PAGE_SIZE);
-  }, [filteredOrders, visibleCurrentPage]);
-
+  const isCurrentQueryRequested = requestedQueryKey === currentQueryKey;
+  const isCurrentQueryLoaded = loadedQueryKey === currentQueryKey;
+  const isRequestedViewLoading =
+    !isCurrentQueryLoaded &&
+    (!isCurrentQueryRequested ||
+      listStatus === REQUEST_STATUS.IDLE ||
+      listStatus === REQUEST_STATUS.PENDING);
+  const hasRequestedViewError = Boolean(
+    listError && isCurrentQueryRequested && !isCurrentQueryLoaded
+  );
+  const hasStaleListWarning = Boolean(
+    listError && isCurrentQueryRequested && isCurrentQueryLoaded && listIsStale
+  );
+  const hasInitialStatsError = Boolean(statsError && !statsLoadedAt);
+  const hasStaleStatsWarning = Boolean(
+    statsError && statsLoadedAt && statsIsStale
+  );
+  const isInitialStatsLoading = !statsLoadedAt && !statsError;
+  const visibleOrders = useMemo(
+    () => (isCurrentQueryLoaded ? orders : []),
+    [isCurrentQueryLoaded, orders]
+  );
   const hasActiveFilters = Boolean(
     orderStatus || paymentStatus || paymentMethod
   );
+  const visiblePage = isCurrentQueryLoaded ? pagination.page : currentPage;
+  const visibleTotalPages = isCurrentQueryLoaded ? pagination.totalPages : 0;
+  const visibleTotal = isCurrentQueryLoaded ? pagination.total : 0;
+  const isMainRefreshPending = isListPending || isStatsPending;
 
-  useEffect(() => {
-    if (inventoryAbortTimerRef.current !== null) {
-      window.clearTimeout(inventoryAbortTimerRef.current);
-      inventoryAbortTimerRef.current = null;
-    }
+  const startListRequest = useCallback(
+    (query, { force = false } = {}) => {
+      const queryKey = createOrdersQueryKey(query);
+      const activeRequest = listRequestRef.current;
 
-    if (!inventoryRequestRef.current) {
-      const requestPromise = dispatch(fetchOrdersInventoryThunk());
+      if (activeRequest?.queryKey === queryKey && !force) {
+        return activeRequest.promise;
+      }
 
-      inventoryRequestRef.current = requestPromise;
+      activeRequest?.promise.abort();
+      const requestPromise = dispatch(fetchOrdersThunk({ ...query, force }));
+      listRequestRef.current = { queryKey, promise: requestPromise };
       requestPromise.finally(() => {
-        if (inventoryRequestRef.current === requestPromise) {
-          inventoryRequestRef.current = null;
+        if (listRequestRef.current?.promise === requestPromise) {
+          listRequestRef.current = null;
         }
       });
+
+      return requestPromise;
+    },
+    [dispatch]
+  );
+
+  const startStatsRequest = useCallback(
+    ({ force = false } = {}) => {
+      if (statsRequestRef.current && !force) {
+        return statsRequestRef.current;
+      }
+
+      statsRequestRef.current?.abort();
+      const requestPromise = dispatch(fetchOrderStatsThunk({ force }));
+      statsRequestRef.current = requestPromise;
+      requestPromise.finally(() => {
+        if (statsRequestRef.current === requestPromise) {
+          statsRequestRef.current = null;
+        }
+      });
+
+      return requestPromise;
+    },
+    [dispatch]
+  );
+
+  useEffect(() => {
+    if (listAbortTimerRef.current !== null) {
+      window.clearTimeout(listAbortTimerRef.current);
+      listAbortTimerRef.current = null;
     }
 
-    return () => {
-      const requestPromise = inventoryRequestRef.current;
+    startListRequest(currentQuery);
 
-      inventoryAbortTimerRef.current = window.setTimeout(() => {
-        if (inventoryRequestRef.current === requestPromise) {
-          requestPromise?.abort();
-          inventoryRequestRef.current = null;
+    return () => {
+      const request = listRequestRef.current;
+
+      listAbortTimerRef.current = window.setTimeout(() => {
+        if (listRequestRef.current === request) {
+          request?.promise.abort();
+          listRequestRef.current = null;
         }
 
-        inventoryAbortTimerRef.current = null;
+        listAbortTimerRef.current = null;
       }, 0);
     };
-  }, [dispatch]);
+  }, [currentQuery, startListRequest]);
+
+  useEffect(() => {
+    if (statsAbortTimerRef.current !== null) {
+      window.clearTimeout(statsAbortTimerRef.current);
+      statsAbortTimerRef.current = null;
+    }
+
+    startStatsRequest();
+
+    return () => {
+      const request = statsRequestRef.current;
+
+      statsAbortTimerRef.current = window.setTimeout(() => {
+        if (statsRequestRef.current === request) {
+          request?.abort();
+          statsRequestRef.current = null;
+        }
+
+        statsAbortTimerRef.current = null;
+      }, 0);
+    };
+  }, [startStatsRequest]);
+
+  useEffect(() => {
+    if (!isCurrentQueryLoaded) {
+      return undefined;
+    }
+
+    const safeLastPage = Math.max(1, pagination.totalPages);
+
+    if (currentPage <= safeLastPage) {
+      return undefined;
+    }
+
+    const correctionTimerId = window.setTimeout(() => {
+      setCurrentPage(safeLastPage);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(correctionTimerId);
+    };
+  }, [currentPage, isCurrentQueryLoaded, pagination.totalPages]);
 
   useEffect(() => {
     return () => {
       detailsRequestRef.current?.abort();
+      detailsRequestRef.current = null;
       dispatch(clearOrderDetails());
     };
   }, [dispatch]);
+
+  function handleRefresh() {
+    if (isMainRefreshPending) {
+      return;
+    }
+
+    startListRequest(currentQuery, { force: true });
+    startStatsRequest({ force: true });
+  }
+
+  function handleRetryList() {
+    if (!isListPending) {
+      startListRequest(currentQuery, { force: true });
+    }
+  }
+
+  function handleRetryStats() {
+    if (!isStatsPending) {
+      startStatsRequest({ force: true });
+    }
+  }
 
   function handleFilterChange(setFilter, value) {
     setFilter(normalizeText(value).toLowerCase());
@@ -437,26 +448,16 @@ function OrdersPage() {
   }
 
   function handlePageChange(page) {
-    if (page < 1 || page > totalPages) {
+    if (
+      page < 1 ||
+      page > visibleTotalPages ||
+      page === currentPage ||
+      !isCurrentQueryLoaded
+    ) {
       return;
     }
 
     setCurrentPage(page);
-  }
-
-  function handleRefresh() {
-    if (isInventoryPending) {
-      return;
-    }
-
-    const requestPromise = dispatch(fetchOrdersInventoryThunk());
-
-    inventoryRequestRef.current = requestPromise;
-    requestPromise.finally(() => {
-      if (inventoryRequestRef.current === requestPromise) {
-        inventoryRequestRef.current = null;
-      }
-    });
   }
 
   function requestSelectedOrderDetails(order) {
@@ -471,6 +472,11 @@ function OrdersPage() {
     const requestPromise = dispatch(fetchOrderDetailsThunk({ orderId }));
 
     detailsRequestRef.current = requestPromise;
+    requestPromise.finally(() => {
+      if (detailsRequestRef.current === requestPromise) {
+        detailsRequestRef.current = null;
+      }
+    });
   }
 
   function handleOpenDetails(order) {
@@ -504,65 +510,77 @@ function OrdersPage() {
     isDetailsPending && detailsOrderId === selectedOrderId;
 
   return (
-    <div className="w-full min-w-0 max-w-full overflow-x-hidden">
+    <div className="w-full min-w-0 max-w-full">
       <PageBreadcrumb
         pageTitle="Orders"
-        description="Review platform statistics and the read-only subset of Orders available through Seller records."
+        description="Review Orders returned directly by the Admin Orders API and inspect each record."
       />
 
-      <div className="-mt-2 mb-5 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          Last loaded: {formatLoadedAt(coverage.loadedAt)}
-        </p>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={isInventoryPending}
+      <div className="-mt-2 mb-5 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0 text-xs text-gray-500 dark:text-gray-400">
+          <p>Last updated: {formatLoadedAt(listLoadedAt)}</p>
+        </div>
+        <RefreshDataButton
           onClick={handleRefresh}
-          startIcon={<RefreshIcon isSpinning={isInventoryPending} />}
-        >
-          {isInventoryPending ? "Refreshing..." : "Refresh data"}
-        </Button>
+          isRefreshing={isMainRefreshPending}
+        />
       </div>
 
-      {isSuperAdmin && (
-        <PlatformSummary
-          expected={coverage.expected}
-          isLoading={isInitialLoading}
-        />
-      )}
+      <OrderSummary stats={stats} isLoading={isInitialStatsLoading} />
 
-      <CoverageWarning coverage={coverage} />
-
-      {hasInitialError && (
-        <PageFeedback tone="error" actionLabel="Try again" onAction={handleRefresh}>
-          <p className="font-medium">Available Order records could not be loaded.</p>
-          <p className="mt-1 text-xs">{inventoryError}</p>
+      {hasInitialStatsError && (
+        <PageFeedback
+          tone="error"
+          actionLabel="Try again"
+          onAction={handleRetryStats}
+        >
+          <p className="font-medium">Order statistics could not be loaded.</p>
+          <p className="mt-1 text-xs">{statsError}</p>
         </PageFeedback>
       )}
 
-      {hasStaleInventoryWarning && (
-        <PageFeedback actionLabel="Try again" onAction={handleRefresh}>
-          <p className="font-medium">Older cached Order data remains visible.</p>
+      {hasStaleStatsWarning && (
+        <PageFeedback actionLabel="Try again" onAction={handleRetryStats}>
+          <p className="font-medium">Cached Order statistics remain visible.</p>
           <p className="mt-1">
-            The latest Seller-based inventory refresh was incomplete. The last
-            usable snapshot remains below and may no longer be current.
+            The latest statistics refresh failed, so these totals may be stale.
           </p>
-          <p className="mt-1 text-xs">{inventoryError}</p>
+          <p className="mt-1 text-xs">{statsError}</p>
         </PageFeedback>
       )}
 
-      {!hasInitialError && (
+      {hasRequestedViewError && (
+        <PageFeedback
+          tone="error"
+          actionLabel="Try again"
+          onAction={handleRetryList}
+        >
+          <p className="font-medium">Order records could not be loaded.</p>
+          <p className="mt-1 text-xs">{listError}</p>
+        </PageFeedback>
+      )}
+
+      {hasStaleListWarning && (
+        <PageFeedback actionLabel="Try again" onAction={handleRetryList}>
+          <p className="font-medium">Cached Order records remain visible.</p>
+          <p className="mt-1">
+            The latest list refresh failed, so the displayed page may be stale.
+          </p>
+          <p className="mt-1 text-xs">{listError}</p>
+        </PageFeedback>
+      )}
+
+      {!hasRequestedViewError && (
         <>
           <OrdersToolbar
             orderStatus={orderStatus}
             paymentStatus={paymentStatus}
             paymentMethod={paymentMethod}
-            availableCount={orders.length}
-            filteredCount={filteredOrders.length}
-            expectedTotal={coverage.expected?.total}
-            disabled={isInitialLoading}
+            currentPage={visiblePage}
+            pageSize={ORDERS_PAGE_SIZE}
+            totalItems={visibleTotal}
+            pageRecordCount={visibleOrders.length}
+            disabled={isRequestedViewLoading}
             onOrderStatusChange={(value) =>
               handleFilterChange(setOrderStatus, value)
             }
@@ -576,11 +594,11 @@ function OrdersPage() {
 
           <OrdersTable
             orders={visibleOrders}
-            isLoading={isInitialLoading}
+            isLoading={isRequestedViewLoading}
             hasActiveFilters={hasActiveFilters}
-            currentPage={visibleCurrentPage}
-            totalPages={totalPages}
-            totalItems={filteredOrders.length}
+            currentPage={visiblePage}
+            totalPages={visibleTotalPages}
+            totalItems={visibleTotal}
             pageSize={ORDERS_PAGE_SIZE}
             onPageChange={handlePageChange}
             onView={handleOpenDetails}
@@ -593,7 +611,7 @@ function OrdersPage() {
           isOpen
           details={detailsOrderId === selectedOrderId ? details : null}
           fallbackOrder={selectedOrder}
-          error={detailsOrderId === selectedOrderId ? detailsError ?? "" : ""}
+          error={detailsOrderId === selectedOrderId ? (detailsError ?? "") : ""}
           isLoading={isSelectedDetailsLoading}
           onClose={handleCloseDetails}
           onRetry={handleRetryDetails}

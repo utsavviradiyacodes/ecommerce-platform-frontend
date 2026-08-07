@@ -227,6 +227,7 @@ function RecentProducts({
   isLoading = false,
   error = "",
   onRetry = () => {},
+  canViewAllProducts = false,
 }) {
   const hasProducts = products.length > 0;
 
@@ -243,12 +244,17 @@ function RecentProducts({
           </p>
         </div>
 
-        <Link
-          to="/admin/products"
-          className="inline-flex w-fit shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-theme-xs transition hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-gray-700 dark:bg-transparent dark:text-gray-300 dark:hover:bg-white/5"
-        >
-          View all Products
-        </Link>
+        {canViewAllProducts && (
+          <Link
+            to="/admin/products"
+            onClick={() =>
+              window.scrollTo({ top: 0, left: 0, behavior: "auto" })
+            }
+            className="inline-flex w-fit shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-theme-xs transition hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-gray-700 dark:bg-transparent dark:text-gray-300 dark:hover:bg-white/5"
+          >
+            View all Products
+          </Link>
+        )}
       </div>
 
       {error && !hasProducts ? (

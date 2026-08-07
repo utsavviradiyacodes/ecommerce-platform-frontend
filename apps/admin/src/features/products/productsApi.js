@@ -146,12 +146,6 @@ export async function updateProduct({ productId, changes, ...inlineChanges }) {
       return;
     }
 
-    // The backend casts an empty tags string to [""], not an empty array.
-    // Omitting an attempted empty value preserves the existing tag set.
-    if (field === "tags" && String(value).trim() === "") {
-      return;
-    }
-
     formData.append(field, field === "tags" ? String(value).trim() : value);
   });
 

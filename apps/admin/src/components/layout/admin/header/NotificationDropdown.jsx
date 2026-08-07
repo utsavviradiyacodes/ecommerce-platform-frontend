@@ -2,6 +2,80 @@ import { useState } from "react";
 
 import { Dropdown } from "../../../ui/dropdown/Dropdown.jsx";
 
+const NOTIFICATIONS = [
+  {
+    id: "seller-application",
+    type: "Seller",
+    title: "Seller application",
+    message: "A new Seller application is waiting for review.",
+    time: "5 min ago",
+    iconClasses:
+      "bg-brand-50 text-brand-500 dark:bg-brand-500/15 dark:text-brand-400",
+  },
+  {
+    id: "return-request",
+    type: "Return",
+    title: "Return request",
+    message: "A Return request requires Admin review.",
+    time: "18 min ago",
+    iconClasses:
+      "bg-error-50 text-error-600 dark:bg-error-500/15 dark:text-error-400",
+  },
+  {
+    id: "payment-refund",
+    type: "Payment",
+    title: "Payment refund",
+    message: "A Payment refund was processed successfully.",
+    time: "1 hr ago",
+    iconClasses:
+      "bg-success-50 text-success-600 dark:bg-success-500/15 dark:text-success-400",
+  },
+];
+
+function NotificationIcon({ type }) {
+  const normalizedType = type.toLowerCase();
+
+  if (normalizedType === "seller") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" className="size-5" aria-hidden="true">
+        <path
+          d="M16 20V18.5C16 16.57 14.43 15 12.5 15H7.5C5.57 15 4 16.57 4 18.5V20M10 11C12.21 11 14 9.21 14 7C14 4.79 12.21 3 10 3C7.79 3 6 4.79 6 7C6 9.21 7.79 11 10 11ZM18 8V14M21 11H15"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
+
+  if (normalizedType === "return") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" className="size-5" aria-hidden="true">
+        <path
+          d="M8 7H17C18.66 7 20 8.34 20 10V17M8 7L11 4M8 7L11 10M16 17H7C5.34 17 4 15.66 4 14V7M16 17L13 14M16 17L13 20"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="size-5" aria-hidden="true">
+      <path
+        d="M4 7H20M6 4H18C19.1 4 20 4.9 20 6V18C20 19.1 19.1 20 18 20H6C4.9 20 4 19.1 4 18V6C4 4.9 4.9 4 6 4ZM8 15H11"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function NotificationDropdown() {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -18,10 +92,11 @@ function NotificationDropdown() {
       <button
         type="button"
         onClick={toggleDropdown}
-        aria-label="Open notifications"
+        aria-label={isOpen ? "Close notifications" : "Open notifications"}
+        aria-expanded={isOpen}
         className="dropdown-toggle relative flex h-11 w-11 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
       >
-        {/* Visual placeholder matching TailAdmin's unread indicator */}
+        {/* TailAdmin-style unread indicator */}
         <span className="absolute right-0 top-0.5 z-10 h-2 w-2 rounded-full bg-orange-400">
           <span className="absolute inset-0 inline-flex h-full w-full animate-ping rounded-full bg-orange-400 opacity-75" />
         </span>
@@ -63,17 +138,41 @@ function NotificationDropdown() {
           </button>
         </div>
 
-        <div className="flex min-h-40 items-center justify-center rounded-xl bg-gray-50 px-4 text-center dark:bg-white/5">
-          <div>
-            <p className="text-theme-sm font-medium text-gray-700 dark:text-gray-300">
-              No notifications yet
-            </p>
+        <ul className="custom-scrollbar max-h-96 overflow-y-auto">
+          {NOTIFICATIONS.map((notification) => (
+            <li
+              key={notification.id}
+              className="flex gap-3 border-b border-gray-100 px-2 py-3 last:border-b-0 dark:border-gray-800"
+            >
+              <span
+                className={`flex size-10 shrink-0 items-center justify-center rounded-full ${notification.iconClasses}`}
+              >
+                <NotificationIcon type={notification.type} />
+              </span>
 
-            <p className="mt-1 text-theme-xs text-gray-500 dark:text-gray-400">
-              Sellora notifications will appear here.
-            </p>
-          </div>
-        </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start gap-2">
+                  <p className="min-w-0 flex-1 text-theme-sm font-medium text-gray-800 dark:text-white/90">
+                    {notification.title}
+                  </p>
+                  <span
+                    className="mt-1.5 size-2 shrink-0 rounded-full bg-brand-500"
+                    aria-label="Unread"
+                  />
+                </div>
+
+                <p className="mt-0.5 text-theme-xs leading-5 text-gray-500 dark:text-gray-400">
+                  {notification.message}
+                </p>
+
+                <p className="mt-1 text-theme-xs text-gray-400 dark:text-gray-500">
+                  {notification.type} <span aria-hidden="true">&bull;</span>{" "}
+                  {notification.time}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ul>
       </Dropdown>
     </div>
   );

@@ -1,9 +1,4 @@
-import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
-
-import {
-  invalidateAdminSession,
-  signOutAdminThunk,
-} from "../auth/authSlice.js";
+import { createSlice } from "@reduxjs/toolkit";
 
 import { getApiErrorMessage } from "../../utils/api/getApiErrorMessage.js";
 
@@ -11,7 +6,6 @@ import {
   REQUEST_STATUS,
   clearRequestFeedback,
   createRequestState,
-  getRejectedActionErrorMessage,
   isRequestStateOwnedBy,
   setRequestFailed,
   setRequestPending,
@@ -29,37 +23,52 @@ function createInitialState() {
 }
 
 const initialState = createInitialState();
-
-// -----------------------------------------------------------------------------
-// Change Password
-// -----------------------------------------------------------------------------
-
-export const changeAdminPasswordThunk = createAsyncThunk(
-  "settings/changeAdminPassword",
-  async (passwordData, { rejectWithValue }) => {
-    try {
-      return await changeAdminPassword(passwordData);
-    } catch (error) {
-      return rejectWithValue(
-        getApiErrorMessage(
-          error,
-          "Unable to change your password. Please try again."
-        )
-      );
-    }
-  },
-  {
-    condition: (_, { getState }) =>
-      getState().settings.requests.changePassword.status !==
-      REQUEST_STATUS.PENDING,
-  }
-);
+let changePasswordRequestSequence = 0;
 
 const settingsSlice = createSlice({
   name: "settings",
   initialState,
 
   reducers: {
+    changeAdminPasswordStarted(state, action) {
+      setRequestPending(
+        state.requests.changePassword,
+        action.payload.requestId
+      );
+    },
+
+    changeAdminPasswordSucceeded(state, action) {
+      if (
+        !isRequestStateOwnedBy(
+          state.requests.changePassword,
+          action.payload.requestId
+        )
+      ) {
+        return;
+      }
+
+      setRequestSucceeded(
+        state.requests.changePassword,
+        action.payload.message || "Password changed successfully."
+      );
+    },
+
+    changeAdminPasswordFailed(state, action) {
+      if (
+        !isRequestStateOwnedBy(
+          state.requests.changePassword,
+          action.payload.requestId
+        )
+      ) {
+        return;
+      }
+
+      setRequestFailed(
+        state.requests.changePassword,
+        action.payload.error
+      );
+    },
+
     clearSettingsChangePasswordRequestFeedback(state) {
       clearRequestFeedback(state.requests.changePassword);
     },
@@ -75,60 +84,75 @@ const settingsSlice = createSlice({
     selectSettingsChangePasswordSuccessMessage: (sliceState) =>
       sliceState.requests.changePassword.successMessage,
   },
-
-  extraReducers: (builder) => {
-    builder
-      .addCase(changeAdminPasswordThunk.pending, (state, action) => {
-        setRequestPending(
-          state.requests.changePassword,
-          action.meta.requestId
-        );
-      })
-      .addCase(changeAdminPasswordThunk.fulfilled, (state, action) => {
-        if (
-          !isRequestStateOwnedBy(
-            state.requests.changePassword,
-            action.meta.requestId
-          )
-        ) {
-          return;
-        }
-
-        setRequestSucceeded(
-          state.requests.changePassword,
-          action.payload?.message || "Password changed successfully."
-        );
-      })
-      .addCase(changeAdminPasswordThunk.rejected, (state, action) => {
-        if (
-          !isRequestStateOwnedBy(
-            state.requests.changePassword,
-            action.meta.requestId
-          )
-        ) {
-          return;
-        }
-
-        setRequestFailed(
-          state.requests.changePassword,
-          getRejectedActionErrorMessage(
-            action,
-            "Unable to change your password. Please try again."
-          )
-        );
-      })
-      .addCase(invalidateAdminSession, () => createInitialState())
-      .addCase(signOutAdminThunk.fulfilled, () => createInitialState());
-  },
 });
 
-export const { clearSettingsChangePasswordRequestFeedback } =
-  settingsSlice.actions;
+export const {
+  changeAdminPasswordStarted,
+  changeAdminPasswordSucceeded,
+  changeAdminPasswordFailed,
+  clearSettingsChangePasswordRequestFeedback,
+} = settingsSlice.actions;
 
 export const {
   selectIsSettingsChangePasswordPending,
   selectSettingsChangePasswordError,
   selectSettingsChangePasswordSuccessMessage,
 } = settingsSlice.selectors;
+
+export function changeAdminPasswordThunk(passwordData) {
+  return async (dispatch, getState) => {
+    if (
+      getState().settings.requests.changePassword.status ===
+      REQUEST_STATUS.PENDING
+    ) {
+      return { success: false, skipped: true };
+    }
+
+    const requestId = `change-admin-password-${Date.now()}-${++changePasswordRequestSequence}`;
+
+    dispatch(changeAdminPasswordStarted({ requestId }));
+
+    try {
+      const response = await changeAdminPassword(passwordData);
+
+      if (
+        !isRequestStateOwnedBy(
+          getState().settings.requests.changePassword,
+          requestId
+        )
+      ) {
+        return { success: false, stale: true };
+      }
+
+      const resultAction = changeAdminPasswordSucceeded({
+        requestId,
+        message: response.message || null,
+      });
+
+      dispatch(resultAction);
+      return resultAction;
+    } catch (error) {
+      if (
+        !isRequestStateOwnedBy(
+          getState().settings.requests.changePassword,
+          requestId
+        )
+      ) {
+        return { success: false, stale: true };
+      }
+
+      const resultAction = changeAdminPasswordFailed({
+        requestId,
+        error: getApiErrorMessage(
+          error,
+          "Unable to change your password. Please try again."
+        ),
+      });
+
+      dispatch(resultAction);
+      return resultAction;
+    }
+  };
+}
 
 export default settingsSlice.reducer;

@@ -68,7 +68,7 @@ function SellerStatusModal({
             className={`mx-auto flex size-14 items-center justify-center rounded-full ${
               isReactivating
                 ? "bg-success-50 text-success-600 dark:bg-success-500/15 dark:text-success-400"
-                : "bg-warning-50 text-warning-600 dark:bg-warning-500/15 dark:text-warning-400"
+                : "bg-error-50 text-error-600 dark:bg-error-500/15 dark:text-error-400"
             }`}
           >
             <StatusIcon className="size-7" />
@@ -118,7 +118,7 @@ function SellerStatusModal({
             className={`w-full sm:w-auto ${
               isReactivating
                 ? "bg-success-500 hover:bg-success-600"
-                : "bg-warning-500 hover:bg-warning-600"
+                : "bg-error-500 hover:bg-error-600"
             }`}
             startIcon={<StatusIcon className="size-5" />}
           >

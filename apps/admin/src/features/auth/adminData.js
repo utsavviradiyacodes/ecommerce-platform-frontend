@@ -1,6 +1,8 @@
 const INVALID_ADMIN_DATA_MESSAGE =
   "Received an unexpected administrator response.";
 
+const AUTHENTICATED_ADMIN_ROLES = new Set(["admin", "superadmin"]);
+
 function isNonArrayObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -49,4 +51,47 @@ export function normalizeAdminData(value) {
   }
 
   return normalizedAdmin;
+}
+
+export function normalizeAuthenticatedAdminData(value) {
+  if (!isNonArrayObject(value)) {
+    throw new Error(INVALID_ADMIN_DATA_MESSAGE);
+  }
+
+  const role = toTrimmedString(value.role);
+  const hasInvalidActiveStatus =
+    Object.hasOwn(value, "isActive") && value.isActive !== true;
+  const hasInvalidVerificationStatus =
+    Object.hasOwn(value, "isVerified") && value.isVerified !== true;
+  const hasInvalidSuperAdminStatus =
+    Object.hasOwn(value, "isSuperAdmin") &&
+    typeof value.isSuperAdmin !== "boolean";
+
+  if (
+    !AUTHENTICATED_ADMIN_ROLES.has(role) ||
+    hasInvalidActiveStatus ||
+    hasInvalidVerificationStatus ||
+    hasInvalidSuperAdminStatus
+  ) {
+    throw new Error(INVALID_ADMIN_DATA_MESSAGE);
+  }
+
+  return normalizeAdminData(value);
+}
+
+export function normalizeAdminAuthenticationData(value) {
+  if (!isNonArrayObject(value)) {
+    throw new Error(INVALID_ADMIN_DATA_MESSAGE);
+  }
+
+  const token = toTrimmedString(value.token);
+
+  if (!token) {
+    throw new Error(INVALID_ADMIN_DATA_MESSAGE);
+  }
+
+  return {
+    token,
+    admin: normalizeAuthenticatedAdminData(value),
+  };
 }

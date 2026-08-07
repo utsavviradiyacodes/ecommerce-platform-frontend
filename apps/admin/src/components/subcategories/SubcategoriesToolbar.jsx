@@ -10,7 +10,6 @@ function SubcategoriesToolbar({
   resultCount = 0,
   isSearchDisabled = false,
   isCategoryFilterDisabled = false,
-  isCategoryFilterLoading = false,
   isAddDisabled = false,
   onSearchChange = () => {},
   onCategoryChange = () => {},
@@ -79,8 +78,6 @@ function SubcategoriesToolbar({
               onChange={onCategoryChange}
               isSearchable
               searchPlaceholder="Search categories..."
-              isLoading={isCategoryFilterLoading}
-              loadingMessage="Loading categories..."
               noOptionsMessage="No categories found."
             />
           </div>

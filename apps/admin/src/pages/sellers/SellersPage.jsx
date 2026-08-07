@@ -7,6 +7,7 @@ import SellerDetailsModal from "../../components/sellers/SellerDetailsModal.jsx"
 import SellersTable from "../../components/sellers/SellersTable.jsx";
 import SellersToolbar from "../../components/sellers/SellersToolbar.jsx";
 import SellerStatusModal from "../../components/sellers/SellerStatusModal.jsx";
+import { selectAdminSessionGeneration } from "../../features/auth/authSlice.js";
 import {
   changeSellerApprovalThunk,
   changeSellerStatusThunk,
@@ -23,7 +24,6 @@ import {
   getSellersListRequestSequence,
   requestSellersListRefresh,
   requestSellersListThunk,
-  resetSellerMutationRequestStates,
   SELLERS_PAGE_SIZE,
   selectIsSellerApprovalPending,
   selectIsSellerDetailsPending,
@@ -403,7 +403,7 @@ function SellersPage() {
   useEffect(() => {
     return () => {
       dispatch(clearSellerDetails());
-      dispatch(resetSellerMutationRequestStates());
+      dispatch(clearSellerMutationRequestFeedback());
     };
   }, [dispatch]);
 
@@ -487,9 +487,14 @@ function SellersPage() {
 
     const sellerId = getSellerId(approvalSeller);
     const nextIsApproved = approvalSeller.isApproved === false;
+    const sessionGeneration = selectAdminSessionGeneration(store.getState());
     const resultAction = await dispatch(
       changeSellerApprovalThunk({ sellerId, nextIsApproved })
     );
+
+    if (selectAdminSessionGeneration(store.getState()) !== sessionGeneration) {
+      return;
+    }
 
     if (!changeSellerApprovalThunk.fulfilled.match(resultAction)) {
       if (isRedundantApprovalResponse(resultAction.payload)) {
@@ -532,9 +537,14 @@ function SellersPage() {
 
     const sellerId = getSellerId(statusSeller);
     const nextIsActive = statusSeller.isActive === false;
+    const sessionGeneration = selectAdminSessionGeneration(store.getState());
     const resultAction = await dispatch(
       changeSellerStatusThunk({ sellerId, nextIsActive })
     );
+
+    if (selectAdminSessionGeneration(store.getState()) !== sessionGeneration) {
+      return;
+    }
 
     if (!changeSellerStatusThunk.fulfilled.match(resultAction)) {
       if (isRedundantStatusResponse(resultAction.payload)) {

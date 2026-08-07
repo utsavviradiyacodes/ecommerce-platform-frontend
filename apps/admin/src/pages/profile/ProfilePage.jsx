@@ -18,7 +18,7 @@ import {
   clearProfileUpdateRequestFeedback,
   deleteAdminAvatarThunk,
   fetchAdminProfileThunk,
-  resetProfileState,
+  resetProfileFetchRequestState,
   selectIsProfileAvatarDeletePending,
   selectIsProfileFetchPending,
   selectIsProfileMutationPending,
@@ -128,7 +128,9 @@ function ProfilePage() {
 
     return () => {
       fetchPromise.abort();
-      dispatch(resetProfileState());
+      dispatch(resetProfileFetchRequestState());
+      dispatch(clearProfileUpdateRequestFeedback());
+      dispatch(clearProfileAvatarDeleteRequestFeedback());
     };
   }, [dispatch]);
 

@@ -5,6 +5,7 @@ import { useDispatch, useSelector } from "react-redux";
 
 import AuthFormContainer from "../../components/layout/auth/AuthFormContainer.jsx";
 import Button from "../../components/ui/button/Button.jsx";
+import { ChevronLeftIcon } from "../../icons/index.js";
 
 import {
   clearAdminPasswordResetOtpResendFeedback,
@@ -302,17 +303,17 @@ function VerifyResetCodePage() {
         disabled={isBusy}
         className="mb-7 inline-flex cursor-pointer items-center gap-2 rounded-sm text-sm font-medium text-gray-500 transition-colors hover:text-gray-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400 dark:hover:text-gray-300 dark:focus-visible:outline-brand-400"
       >
-        <span>←</span>
+        <ChevronLeftIcon className="size-5 shrink-0" />
         Change email
       </button>
 
       <div className="mb-8">
         <h1 className="mb-2 text-title-sm font-semibold text-gray-800 dark:text-white/90 sm:text-title-md">
-          Verify Your Email
+          Verify Reset Code
         </h1>
 
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Enter the 6-digit verification code sent to{" "}
+          Enter the 6-digit password reset code sent to{" "}
           <span className="break-all font-medium text-gray-700 dark:text-gray-300">
             {email}
           </span>
@@ -327,7 +328,7 @@ function VerifyResetCodePage() {
         <div className="space-y-6">
           <fieldset aria-describedby={otpDescriptionIds || undefined}>
             <legend className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-              Verification Code
+              Password Reset Code
             </legend>
 
             <div className="grid grid-cols-6 gap-1.5 sm:gap-3">
@@ -427,14 +428,14 @@ function VerifyResetCodePage() {
         </div>
       </form>
 
-      <div className="mt-5 flex min-h-5 flex-wrap items-center justify-center gap-x-1 gap-y-1 text-center text-sm text-gray-500 dark:text-gray-400">
+      <div className="mt-4 flex min-h-5 flex-wrap items-center justify-center gap-x-1 gap-y-1 text-center text-sm text-gray-500 dark:text-gray-400">
         <span>Didn’t receive the code?</span>
 
         <button
           type="button"
           onClick={handleResendCode}
           disabled={secondsRemaining > 0 || isBusy}
-          className="min-w-36 cursor-pointer rounded-sm text-center font-medium text-brand-500 hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-brand-400 dark:hover:text-brand-300 dark:focus-visible:outline-brand-400 dark:disabled:text-gray-600"
+          className="w-32 shrink-0 cursor-pointer rounded-sm text-center font-medium tabular-nums text-brand-500 hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:text-gray-400 sm:text-left dark:text-brand-400 dark:hover:text-brand-300 dark:focus-visible:outline-brand-400 dark:disabled:text-gray-600"
         >
           {isResendPending
             ? "Resending..."

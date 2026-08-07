@@ -3,13 +3,14 @@ import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
-import { useDispatch, useSelector } from "react-redux";
+import { useDispatch, useSelector, useStore } from "react-redux";
 
 import PageBreadcrumb from "../../components/common/PageBreadcrumb.jsx";
 import SubcategoryDeleteModal from "../../components/subcategories/SubcategoryDeleteModal.jsx";
 import SubcategoryFormModal from "../../components/subcategories/SubcategoryFormModal.jsx";
 import SubcategoriesTable from "../../components/subcategories/SubcategoriesTable.jsx";
 import SubcategoriesToolbar from "../../components/subcategories/SubcategoriesToolbar.jsx";
+import { selectAdminSessionGeneration } from "../../features/auth/authSlice.js";
 
 import {
   clearCreateSubcategoryRequestFeedback,
@@ -18,7 +19,6 @@ import {
   createSubcategoryThunk,
   deleteSubcategoryThunk,
   fetchSubcategoriesThunk,
-  resetSubcategoryMutationRequestStates,
   selectIsSubcategoryCreatePending,
   selectIsSubcategoryDeletePending,
   selectIsSubcategoryUpdatePending,
@@ -62,6 +62,7 @@ const RETRY_BUTTON_CLASSES =
 
 function SubcategoriesPage() {
   const dispatch = useDispatch();
+  const store = useStore();
 
   const subcategories = useSelector(selectSubcategories);
   const subcategoriesListError = useSelector(selectSubcategoriesListError);
@@ -191,7 +192,9 @@ function SubcategoriesPage() {
     dispatch(fetchCategoriesThunk());
 
     return () => {
-      dispatch(resetSubcategoryMutationRequestStates());
+      dispatch(clearCreateSubcategoryRequestFeedback());
+      dispatch(clearUpdateSubcategoryRequestFeedback());
+      dispatch(clearDeleteSubcategoryRequestFeedback());
     };
   }, [dispatch]);
 
@@ -294,9 +297,13 @@ function SubcategoriesPage() {
       mutationPayload = subcategoryData;
     }
 
+    const sessionGeneration = selectAdminSessionGeneration(store.getState());
     const resultAction = await dispatch(mutationThunk(mutationPayload));
 
-    if (!mutationThunk.fulfilled.match(resultAction)) {
+    if (
+      !mutationThunk.fulfilled.match(resultAction) ||
+      selectAdminSessionGeneration(store.getState()) !== sessionGeneration
+    ) {
       return;
     }
 
@@ -331,11 +338,15 @@ function SubcategoriesPage() {
       return;
     }
 
+    const sessionGeneration = selectAdminSessionGeneration(store.getState());
     const resultAction = await dispatch(
       deleteSubcategoryThunk(deletingSubcategory._id)
     );
 
-    if (!deleteSubcategoryThunk.fulfilled.match(resultAction)) {
+    if (
+      !deleteSubcategoryThunk.fulfilled.match(resultAction) ||
+      selectAdminSessionGeneration(store.getState()) !== sessionGeneration
+    ) {
       return;
     }
 
@@ -357,7 +368,6 @@ function SubcategoriesPage() {
         resultCount={filteredSubcategories.length}
         isSearchDisabled={!hasSubcategories}
         isCategoryFilterDisabled={!hasCategories || !hasSubcategories}
-        isCategoryFilterLoading={isCategoriesListPending}
         isAddDisabled={!hasCategories}
         onSearchChange={handleSearchChange}
         onCategoryChange={handleCategoryChange}

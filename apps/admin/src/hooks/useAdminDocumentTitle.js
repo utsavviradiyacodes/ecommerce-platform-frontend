@@ -8,6 +8,7 @@ const ADMIN_PAGE_NAME_BY_PATH = new Map([
   ["/admin", "Dashboard"],
   ["/admin/sign-in", "Sign In"],
   ["/admin/forgot-password", "Forgot Password"],
+  ["/admin/verify-email", "Verify Email"],
   ["/admin/verify-reset-code", "Verify Reset Code"],
   ["/admin/create-new-password", "Create New Password"],
   ["/admin/dashboard", "Dashboard"],

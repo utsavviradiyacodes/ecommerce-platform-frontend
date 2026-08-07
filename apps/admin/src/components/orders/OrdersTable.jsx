@@ -41,14 +41,12 @@ const PAYMENT_STATUS_TONES = {
 };
 
 const BADGE_CLASSES = {
-  brand:
-    "bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-400",
+  brand: "bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-400",
   success:
     "bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-400",
   warning:
     "bg-warning-50 text-warning-700 dark:bg-warning-500/15 dark:text-warning-400",
-  error:
-    "bg-error-50 text-error-700 dark:bg-error-500/15 dark:text-error-400",
+  error: "bg-error-50 text-error-700 dark:bg-error-500/15 dark:text-error-400",
   neutral: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
 };
 
@@ -75,7 +73,9 @@ function getOrderId(order) {
 function formatOrderReference(order) {
   const orderId = getOrderId(order);
 
-  return orderId ? `#${orderId.slice(-8).toUpperCase()}` : "Order ID unavailable";
+  return orderId
+    ? `#${orderId.slice(-8).toUpperCase()}`
+    : "Order ID unavailable";
 }
 
 function getNonNegativeNumber(value) {
@@ -154,7 +154,9 @@ function getSellerLabels(order) {
     const label =
       normalizeText(seller?.shopName) ||
       normalizeText(seller?.name) ||
-      "Seller unavailable";
+      (sellerId
+        ? `Seller #${sellerId.slice(-8).toUpperCase()}`
+        : "Seller unavailable");
     const key = sellerId || `${label}-${index}`;
 
     labelsByKey.set(key, label);
@@ -185,7 +187,13 @@ function ViewIcon() {
         strokeWidth="1.7"
         strokeLinejoin="round"
       />
-      <circle cx="12" cy="12" r="2.75" stroke="currentColor" strokeWidth="1.7" />
+      <circle
+        cx="12"
+        cy="12"
+        r="2.75"
+        stroke="currentColor"
+        strokeWidth="1.7"
+      />
     </svg>
   );
 }
@@ -228,7 +236,7 @@ function OrdersTable({
   isLoading = false,
   hasActiveFilters = false,
   currentPage = 1,
-  totalPages = 1,
+  totalPages = 0,
   totalItems = 0,
   pageSize = 10,
   onPageChange = () => {},
@@ -240,31 +248,55 @@ function OrdersTable({
     <div className="w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/5 dark:bg-white/3">
       {(isLoading || hasOrders) && (
         <div className="custom-scrollbar max-w-full overflow-x-auto overflow-y-hidden">
-          <Table className="min-w-[1220px]">
+          <Table className="min-w-305">
             <TableHeader className="border-b border-gray-100 dark:border-white/5">
               <TableRow>
-                <TableCell isHeader className="px-5 py-3 text-start font-medium text-gray-500 text-theme-xs sm:px-6 dark:text-gray-400">
+                <TableCell
+                  isHeader
+                  className="px-5 py-3 text-start font-medium text-gray-500 text-theme-xs sm:px-6 dark:text-gray-400"
+                >
                   Order
                 </TableCell>
-                <TableCell isHeader className="px-4 py-3 text-start font-medium text-gray-500 text-theme-xs dark:text-gray-400">
+                <TableCell
+                  isHeader
+                  className="px-4 py-3 text-start font-medium text-gray-500 text-theme-xs dark:text-gray-400"
+                >
                   Customer
                 </TableCell>
-                <TableCell isHeader className="px-4 py-3 text-start font-medium text-gray-500 text-theme-xs dark:text-gray-400">
+                <TableCell
+                  isHeader
+                  className="px-4 py-3 text-start font-medium text-gray-500 text-theme-xs dark:text-gray-400"
+                >
                   Sellers
                 </TableCell>
-                <TableCell isHeader className="px-4 py-3 text-start font-medium text-gray-500 text-theme-xs dark:text-gray-400">
+                <TableCell
+                  isHeader
+                  className="px-4 py-3 text-start font-medium text-gray-500 text-theme-xs dark:text-gray-400"
+                >
                   Order status
                 </TableCell>
-                <TableCell isHeader className="px-4 py-3 text-center font-medium text-gray-500 text-theme-xs dark:text-gray-400">
+                <TableCell
+                  isHeader
+                  className="px-4 py-3 text-center font-medium text-gray-500 text-theme-xs dark:text-gray-400"
+                >
                   Payment
                 </TableCell>
-                <TableCell isHeader className="px-4 py-3 text-start font-medium text-gray-500 text-theme-xs dark:text-gray-400">
+                <TableCell
+                  isHeader
+                  className="px-4 py-3 text-start font-medium text-gray-500 text-theme-xs dark:text-gray-400"
+                >
                   Order total
                 </TableCell>
-                <TableCell isHeader className="min-w-52 px-4 py-3 text-start font-medium whitespace-nowrap text-gray-500 text-theme-xs dark:text-gray-400">
+                <TableCell
+                  isHeader
+                  className="min-w-52 px-4 py-3 text-start font-medium whitespace-nowrap text-gray-500 text-theme-xs dark:text-gray-400"
+                >
                   Placed
                 </TableCell>
-                <TableCell isHeader className="px-5 py-3 text-right font-medium text-gray-500 text-theme-xs sm:px-6 dark:text-gray-400">
+                <TableCell
+                  isHeader
+                  className="px-5 py-3 text-right font-medium text-gray-500 text-theme-xs sm:px-6 dark:text-gray-400"
+                >
                   Actions
                 </TableCell>
               </TableRow>
@@ -282,14 +314,21 @@ function OrdersTable({
                     normalizeText(customer?.email) || "Email unavailable";
                   const sellerLabels = getSellerLabels(order);
                   const firstSeller = sellerLabels[0] || "Seller unavailable";
-                  const additionalSellerCount = Math.max(sellerLabels.length - 1, 0);
+                  const additionalSellerCount = Math.max(
+                    sellerLabels.length - 1,
+                    0
+                  );
                   const itemCount = Array.isArray(order?.orderItems)
                     ? order.orderItems.length
                     : null;
-                  const orderKey = orderId || `${formatOrderReference(order)}-${index}`;
+                  const orderKey =
+                    orderId || `${formatOrderReference(order)}-${index}`;
 
                   return (
-                    <TableRow key={orderKey} className="transition-colors hover:bg-gray-50 dark:hover:bg-white/2">
+                    <TableRow
+                      key={orderKey}
+                      className="transition-colors hover:bg-gray-50 dark:hover:bg-white/2"
+                    >
                       <TableCell className="px-5 py-4 sm:px-6">
                         <p className="font-medium text-gray-800 dark:text-white/90">
                           {formatOrderReference(order)}
@@ -301,15 +340,24 @@ function OrdersTable({
                         </p>
                       </TableCell>
                       <TableCell className="min-w-56 max-w-72 px-4 py-4">
-                        <p title={customerName} className="truncate text-sm font-medium text-gray-700 dark:text-gray-300">
+                        <p
+                          title={customerName}
+                          className="truncate text-sm font-medium text-gray-700 dark:text-gray-300"
+                        >
                           {customerName}
                         </p>
-                        <p title={customerEmail} className="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
+                        <p
+                          title={customerEmail}
+                          className="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400"
+                        >
                           {customerEmail}
                         </p>
                       </TableCell>
                       <TableCell className="min-w-48 max-w-64 px-4 py-4">
-                        <p title={sellerLabels.join(", ")} className="truncate text-sm text-gray-700 dark:text-gray-300">
+                        <p
+                          title={sellerLabels.join(", ")}
+                          className="truncate text-sm text-gray-700 dark:text-gray-300"
+                        >
                           {firstSeller}
                           {additionalSellerCount > 0
                             ? ` +${additionalSellerCount}`
@@ -317,11 +365,17 @@ function OrdersTable({
                         </p>
                       </TableCell>
                       <TableCell className="min-w-32 px-4 py-4">
-                        <StatusBadge value={order?.orderStatus} toneMap={ORDER_STATUS_TONES} />
+                        <StatusBadge
+                          value={order?.orderStatus}
+                          toneMap={ORDER_STATUS_TONES}
+                        />
                       </TableCell>
                       <TableCell className="min-w-36 px-4 py-4">
                         <div className="flex flex-col items-center text-center">
-                          <StatusBadge value={order?.paymentStatus} toneMap={PAYMENT_STATUS_TONES} />
+                          <StatusBadge
+                            value={order?.paymentStatus}
+                            toneMap={PAYMENT_STATUS_TONES}
+                          />
                           <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
                             {formatPaymentMethod(order?.paymentMethod)}
                           </p>
@@ -357,14 +411,14 @@ function OrdersTable({
           <div className="mx-auto max-w-sm">
             <p className="text-sm font-medium text-gray-800 dark:text-white/90">
               {hasActiveFilters
-                ? "No matching available Orders"
-                : "No Order records are available"}
+                ? "No Orders match the selected filters"
+                : "No Orders found"}
             </p>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              {hasActiveFilters
-                ? "Try changing one or more Order filters."
-                : "Seller-based Order records will appear here when available."}
-            </p>
+            {hasActiveFilters && (
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Try changing one or more Order filters.
+              </p>
+            )}
           </div>
         </div>
       )}

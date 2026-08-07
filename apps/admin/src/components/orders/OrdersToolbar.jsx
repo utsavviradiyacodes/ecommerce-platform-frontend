@@ -28,52 +28,59 @@ function getSafeCount(value) {
   return Number.isSafeInteger(value) && value >= 0 ? value : 0;
 }
 
-function getOptionalSafeCount(value) {
-  return Number.isSafeInteger(value) && value >= 0 ? value : null;
-}
-
 function OrdersToolbar({
   orderStatus = "",
   paymentStatus = "",
   paymentMethod = "",
-  availableCount = 0,
-  filteredCount = 0,
-  expectedTotal = null,
+  currentPage = 1,
+  pageSize = 10,
+  totalItems = 0,
+  pageRecordCount = 0,
   disabled = false,
   onOrderStatusChange = () => {},
   onPaymentStatusChange = () => {},
   onPaymentMethodChange = () => {},
 }) {
-  const safeAvailableCount = getSafeCount(availableCount);
-  const safeFilteredCount = getSafeCount(filteredCount);
-  const safeExpectedTotal = getOptionalSafeCount(expectedTotal);
+  const safeCurrentPage = Math.max(getSafeCount(currentPage), 1);
+  const safePageSize = Math.max(getSafeCount(pageSize), 1);
+  const safeTotalItems = getSafeCount(totalItems);
+  const safePageRecordCount = getSafeCount(pageRecordCount);
   const hasActiveFilters = Boolean(
     orderStatus || paymentStatus || paymentMethod
   );
+  const firstVisibleItem =
+    safeTotalItems > 0 && safePageRecordCount > 0
+      ? (safeCurrentPage - 1) * safePageSize + 1
+      : 0;
+  const lastVisibleItem =
+    firstVisibleItem > 0
+      ? Math.min(
+          firstVisibleItem + safePageRecordCount - 1,
+          safeTotalItems
+        )
+      : 0;
 
   return (
     <div className="mb-5 min-w-0 rounded-xl border border-gray-200 bg-white p-4 sm:p-5 dark:border-white/5 dark:bg-white/3">
       <div className="mb-3 flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-          {hasActiveFilters ? (
+          {disabled ? (
+            <>Loading Orders…</>
+          ) : firstVisibleItem > 0 ? (
             <>
-              Showing {safeFilteredCount.toLocaleString("en-IN")} of{" "}
-              {safeAvailableCount.toLocaleString("en-IN")} available records
+              Showing {firstVisibleItem.toLocaleString("en-IN")}–
+              {lastVisibleItem.toLocaleString("en-IN")} of{" "}
+              {safeTotalItems.toLocaleString("en-IN")} Orders
             </>
-          ) : safeExpectedTotal !== null ? (
-            <>
-              Available records: {safeAvailableCount.toLocaleString("en-IN")} of{" "}
-              {safeExpectedTotal.toLocaleString("en-IN")} platform Orders
-            </>
+          ) : hasActiveFilters ? (
+            <>No Orders match the selected filters</>
           ) : (
-            <>Available records: {safeAvailableCount.toLocaleString("en-IN")}</>
+            <>No Orders found</>
           )}
         </p>
-        {(hasActiveFilters || safeExpectedTotal === null) && (
+        {hasActiveFilters && (
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            {safeExpectedTotal === null
-              ? "Platform total unavailable for this session"
-              : `Platform total: ${safeExpectedTotal.toLocaleString("en-IN")}`}
+            Server filters active
           </p>
         )}
       </div>

@@ -25,6 +25,9 @@ import {
 
 export const PRODUCTS_PAGE_SIZE = 10;
 
+const UNEXPECTED_PRODUCT_RESPONSE_MESSAGE =
+  "Received an unexpected Product response.";
+
 const pendingProductsListRequests = new Map();
 let productsListRequestSequence = 0;
 
@@ -85,34 +88,99 @@ function getProductId(argument) {
   return typeof argument === "string" ? argument : argument?.productId;
 }
 
+function isNonArrayObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeEntityId(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function isUsableText(value) {
+  return typeof value === "string" && Boolean(value.trim());
+}
+
+function parseSupportedInteger(value, { positive = false } = {}) {
+  const normalizedValue =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && /^\d+$/.test(value.trim())
+        ? Number(value.trim())
+        : Number.NaN;
+
+  if (
+    !Number.isFinite(normalizedValue) ||
+    !Number.isInteger(normalizedValue) ||
+    (positive ? normalizedValue < 1 : normalizedValue < 0)
+  ) {
+    return null;
+  }
+
+  return normalizedValue;
+}
+
+function isUsableProduct(value) {
+  return (
+    isNonArrayObject(value) &&
+    Boolean(normalizeEntityId(value._id ?? value.id)) &&
+    isUsableText(value.name)
+  );
+}
+
 function canStartProductRequest(getState, requestName) {
   const requestState = getState().products?.requests?.[requestName];
 
   return requestState?.status !== REQUEST_STATUS.PENDING;
 }
 
-function normalizeProductsListResponse(response, fallbackPage) {
-  const data = response?.data ?? {};
-  const products = Array.isArray(data.products) ? data.products : [];
-  const parsedTotal = Number(data.total);
-  const parsedPage = Number(data.page);
-  const parsedTotalPages = Number(data.totalPages);
+function normalizeProductsListResponse(response) {
+  const data = response?.data;
+  const products = data?.products;
+  const total = parseSupportedInteger(data?.total);
+  const page = parseSupportedInteger(data?.page, { positive: true });
+  const totalPages = parseSupportedInteger(data?.totalPages, {
+    positive: true,
+  });
+
+  if (
+    response?.success !== true ||
+    !isNonArrayObject(data) ||
+    !Array.isArray(products) ||
+    !products.every(isUsableProduct) ||
+    total === null ||
+    page === null ||
+    totalPages === null
+  ) {
+    throw new Error(UNEXPECTED_PRODUCT_RESPONSE_MESSAGE);
+  }
 
   return {
     products,
-    total:
-      Number.isFinite(parsedTotal) && parsedTotal >= 0
-        ? parsedTotal
-        : products.length,
-    page:
-      Number.isInteger(parsedPage) && parsedPage > 0
-        ? parsedPage
-        : fallbackPage,
-    totalPages:
-      Number.isInteger(parsedTotalPages) && parsedTotalPages > 0
-        ? parsedTotalPages
-        : 1,
+    total,
+    page,
+    totalPages,
   };
+}
+
+function normalizeProductDetailsResponse(response, requestedProductId) {
+  const product = response?.data;
+  const normalizedRequestedProductId = normalizeEntityId(requestedProductId);
+  const responseProductId = normalizeEntityId(product?._id ?? product?.id);
+
+  if (
+    response?.success !== true ||
+    !isUsableProduct(product) ||
+    !normalizedRequestedProductId ||
+    responseProductId !== normalizedRequestedProductId
+  ) {
+    throw new Error(UNEXPECTED_PRODUCT_RESPONSE_MESSAGE);
+  }
+
+  return product;
 }
 
 function createInitialState() {
@@ -165,7 +233,12 @@ export const fetchProductsThunk = createAsyncThunk(
     try {
       const response = await getProducts(query);
 
-      return { response, query, queryKey };
+      return {
+        normalizedList: normalizeProductsListResponse(response),
+        response,
+        query,
+        queryKey,
+      };
     } catch (error) {
       return rejectWithValue(
         getApiErrorMessage(error, "Unable to load products. Please try again.")
@@ -190,7 +263,11 @@ export const fetchProductDetailsThunk = createAsyncThunk(
     try {
       const response = await getProductDetails(productId);
 
-      return { response, productId };
+      return {
+        details: normalizeProductDetailsResponse(response, productId),
+        response,
+        productId,
+      };
     } catch (error) {
       return rejectWithValue(
         getApiErrorMessage(
@@ -542,10 +619,7 @@ const productsSlice = createSlice({
           return;
         }
 
-        const normalizedList = normalizeProductsListResponse(
-          action.payload.response,
-          action.payload.query.page
-        );
+        const normalizedList = action.payload.normalizedList;
 
         state.products = normalizedList.products;
         state.total = normalizedList.total;
@@ -594,7 +668,7 @@ const productsSlice = createSlice({
           return;
         }
 
-        state.details = action.payload.response?.data ?? null;
+        state.details = action.payload.details;
         state.detailsProductId = action.payload.productId;
 
         setRequestSucceeded(state.requests.details);
@@ -905,6 +979,13 @@ export function getPendingProductsListRequest(options = {}) {
   return (
     pendingProductsListRequests.get(resolveProductsQueryKey(options)) ?? null
   );
+}
+
+export function abortAndClearPendingProductsListRequests() {
+  const pendingRequests = Array.from(pendingProductsListRequests.values());
+
+  pendingProductsListRequests.clear();
+  pendingRequests.forEach((request) => request.promise?.abort?.());
 }
 
 export function requestProductsListThunk(options = {}) {

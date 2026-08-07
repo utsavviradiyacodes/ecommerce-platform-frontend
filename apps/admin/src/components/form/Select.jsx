@@ -219,7 +219,7 @@ function Select({
           menu: () =>
             "my-1 w-full min-w-0 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-theme-lg dark:border-gray-700 dark:bg-gray-900",
           menuList: () =>
-            "custom-scrollbar max-h-62 overflow-x-hidden overflow-y-auto px-1 py-1",
+            "max-h-62 overflow-x-hidden overflow-y-auto px-1 py-1",
           option: ({ isDisabled, isFocused, isSelected }) => {
             const baseClasses =
               "w-full min-w-0 truncate rounded-md px-3 py-2 text-sm";

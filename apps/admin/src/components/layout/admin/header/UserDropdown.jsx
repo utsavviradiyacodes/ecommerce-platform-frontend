@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 
 import {
   signOutAdminThunk,
+  selectAdminSignOutError,
   selectCurrentAdmin,
   selectIsAdminSignOutPending,
 } from "../../../../features/auth/authSlice.js";
@@ -45,6 +46,7 @@ function UserDropdown() {
 
   const currentAdmin = useSelector(selectCurrentAdmin);
   const isAdminSignOutPending = useSelector(selectIsAdminSignOutPending);
+  const adminSignOutError = useSelector(selectAdminSignOutError);
 
   const [isOpen, setIsOpen] = useState(false);
 
@@ -71,7 +73,6 @@ function UserDropdown() {
 
   function handleSignOut() {
     dispatch(signOutAdminThunk());
-    closeDropdown();
   }
 
   return (
@@ -165,16 +166,27 @@ function UserDropdown() {
           </li>
         </ul>
 
-        <button
-          type="button"
-          onClick={handleSignOut}
-          disabled={isAdminSignOutPending}
-          className={`${dropdownItemClasses} mt-3 disabled:cursor-not-allowed disabled:opacity-50`}
-        >
-          <SignOutIcon className={dropdownIconClasses} />
+        <div className="mt-3">
+          {adminSignOutError && (
+            <p
+              role="alert"
+              className="mb-2 rounded-lg border border-error-200 bg-error-50 px-3 py-2 text-theme-xs text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400"
+            >
+              {adminSignOutError}
+            </p>
+          )}
 
-          <span>{isAdminSignOutPending ? "Signing out..." : "Sign out"}</span>
-        </button>
+          <button
+            type="button"
+            onClick={handleSignOut}
+            disabled={isAdminSignOutPending}
+            className={`${dropdownItemClasses} disabled:cursor-not-allowed disabled:opacity-50`}
+          >
+            <SignOutIcon className={dropdownIconClasses} />
+
+            <span>{isAdminSignOutPending ? "Signing out..." : "Sign out"}</span>
+          </button>
+        </div>
       </Dropdown>
     </div>
   );

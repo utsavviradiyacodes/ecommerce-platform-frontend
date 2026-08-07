@@ -13,15 +13,11 @@ import {
 } from "../../utils/redux/requestState.js";
 import {
   getOrderDetails,
-  getOrdersDashboardStats,
-  getOrdersSellerPage,
-  getSellerOrdersPage,
+  getOrders,
+  getOrderStats,
 } from "./ordersApi.js";
 
 export const ORDERS_PAGE_SIZE = 10;
-
-const INVENTORY_API_PAGE_SIZE = 50;
-const SELLER_BATCH_SIZE = 4;
 
 export const ORDER_STATUS_KEYS = [
   "placed",
@@ -32,8 +28,46 @@ export const ORDER_STATUS_KEYS = [
   "cancelled",
 ];
 
+const ORDER_STATUSES = new Set(ORDER_STATUS_KEYS);
+const PAYMENT_STATUSES = new Set(["pending", "paid", "failed", "refunded"]);
+const PAYMENT_METHODS = new Set(["online", "upi"]);
+
 function normalizeText(value) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function toPositiveInteger(value, fallback) {
+  const number = Number(value);
+
+  return Number.isInteger(number) && number > 0 ? number : fallback;
+}
+
+function normalizeFilter(value, allowedValues) {
+  const normalizedValue = normalizeText(value).toLowerCase();
+
+  return allowedValues.has(normalizedValue) ? normalizedValue : "";
+}
+
+function normalizeOrdersQuery(options = {}) {
+  return {
+    page: toPositiveInteger(options.page, 1),
+    limit: toPositiveInteger(options.limit, ORDERS_PAGE_SIZE),
+    orderStatus: normalizeFilter(options.orderStatus, ORDER_STATUSES),
+    paymentStatus: normalizeFilter(options.paymentStatus, PAYMENT_STATUSES),
+    paymentMethod: normalizeFilter(options.paymentMethod, PAYMENT_METHODS),
+  };
+}
+
+export function createOrdersQueryKey(options = {}) {
+  const query = normalizeOrdersQuery(options);
+
+  return JSON.stringify([
+    query.page,
+    query.limit,
+    query.orderStatus || null,
+    query.paymentStatus || null,
+    query.paymentMethod || null,
+  ]);
 }
 
 function normalizeEntityId(value) {
@@ -60,377 +94,80 @@ function getOrderId(argument) {
   return getEntityId(argument?.orderId ?? argument);
 }
 
-function getNonNegativeInteger(value) {
-  const number = Number(value);
-
-  return Number.isSafeInteger(number) && number >= 0 ? number : null;
+function isValidOrderId(value) {
+  return /^[0-9a-fA-F]{24}$/.test(value);
 }
 
-function getNonNegativeNumber(value) {
-  if (
-    value === null ||
-    value === undefined ||
-    (typeof value === "string" && !value.trim())
-  ) {
-    return null;
-  }
-
-  const number = Number(value);
-
-  return Number.isFinite(number) && number >= 0 ? number : null;
+function isNonNegativeInteger(value) {
+  return Number.isInteger(value) && value >= 0;
 }
 
-function getSafeTotalPages(value) {
-  const totalPages = Number(value);
-
-  if (Number.isSafeInteger(totalPages) && totalPages > 0) {
-    return totalPages;
-  }
-
-  if (totalPages === 0) {
-    return 1;
-  }
-
-  return null;
-}
-
-function createEmptyStatusCounts() {
-  return ORDER_STATUS_KEYS.reduce((counts, status) => {
-    counts[status] = 0;
-    return counts;
-  }, {});
-}
-
-function normalizeSellerPageResponse(response) {
+function normalizeOrdersResponse(response, query) {
   const data = response?.data;
-  const total = getNonNegativeInteger(data?.total);
-  const totalPages = getSafeTotalPages(data?.totalPages);
 
-  if (
-    !data ||
-    typeof data !== "object" ||
-    Array.isArray(data) ||
-    !Array.isArray(data.sellers) ||
-    total === null ||
-    totalPages === null
-  ) {
-    throw new Error("The Seller directory response was invalid.");
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    throw new Error("The Order list response was invalid.");
   }
 
-  return {
-    sellers: data.sellers,
-    total,
-    totalPages,
-  };
-}
+  if (!Array.isArray(data.orders)) {
+    throw new Error("The Order list response did not include an orders array.");
+  }
 
-function normalizeSellerOrdersPageResponse(response) {
-  const data = response?.data;
-  const total = getNonNegativeInteger(data?.total);
-  const totalPages = getSafeTotalPages(data?.totalPages);
+  const total = Number(data.total);
+  const page = Number(data.page);
+  const totalPages = Number(data.totalPages);
 
   if (
-    !data ||
-    typeof data !== "object" ||
-    Array.isArray(data) ||
-    !Array.isArray(data.orders) ||
-    total === null ||
-    totalPages === null
+    !isNonNegativeInteger(total) ||
+    !Number.isInteger(page) ||
+    page < 1 ||
+    !isNonNegativeInteger(totalPages)
   ) {
-    throw new Error("The Seller Order response was invalid.");
+    throw new Error("The Order list pagination response was invalid.");
   }
 
   return {
     orders: data.orders,
-    total,
-    totalPages,
-  };
-}
-
-async function fetchAllSellers(signal) {
-  const sellersById = new Map();
-  let page = 1;
-  let totalPages = 1;
-  let expectedSellerTotal = null;
-  let hasMalformedSeller = false;
-
-  while (page <= totalPages) {
-    const response = await getOrdersSellerPage({
+    pagination: {
+      total,
       page,
-      limit: INVENTORY_API_PAGE_SIZE,
-      signal,
-    });
-    const normalizedPage = normalizeSellerPageResponse(response);
-
-    expectedSellerTotal ??= normalizedPage.total;
-    totalPages = Math.max(totalPages, normalizedPage.totalPages);
-
-    normalizedPage.sellers.forEach((seller) => {
-      const sellerId = getEntityId(seller);
-
-      if (!sellerId || !seller || typeof seller !== "object") {
-        hasMalformedSeller = true;
-        return;
-      }
-
-      sellersById.set(sellerId, seller);
-    });
-
-    page += 1;
-  }
-
-  if (sellersById.size !== expectedSellerTotal) {
-    hasMalformedSeller = true;
-  }
-
-  return {
-    sellers: Array.from(sellersById.values()),
-    hasMalformedSeller,
-  };
-}
-
-async function fetchAllOrdersForSeller(sellerId, signal) {
-  const orders = [];
-  let page = 1;
-  let totalPages = 1;
-  let expectedOrderTotal = null;
-  let hasPageDrift = false;
-
-  while (page <= totalPages) {
-    const response = await getSellerOrdersPage(sellerId, {
-      page,
-      limit: INVENTORY_API_PAGE_SIZE,
-      signal,
-    });
-    const normalizedPage = normalizeSellerOrdersPageResponse(response);
-
-    expectedOrderTotal ??= normalizedPage.total;
-    totalPages = Math.max(totalPages, normalizedPage.totalPages);
-    orders.push(...normalizedPage.orders);
-    page += 1;
-  }
-
-  if (orders.length !== expectedOrderTotal) {
-    hasPageDrift = true;
-  }
-
-  return { orders, hasPageDrift };
-}
-
-async function fetchSellerOrderBatches(sellers, signal) {
-  const orderCopies = [];
-  const failedSellerIds = [];
-  let hasPageDrift = false;
-
-  for (let index = 0; index < sellers.length; index += SELLER_BATCH_SIZE) {
-    const batch = sellers.slice(index, index + SELLER_BATCH_SIZE);
-    const batchResults = await Promise.all(
-      batch.map(async (seller) => {
-        const sellerId = getEntityId(seller);
-
-        try {
-          return {
-            sellerId,
-            success: true,
-            ...(await fetchAllOrdersForSeller(sellerId, signal)),
-          };
-        } catch (error) {
-          if (signal.aborted) {
-            throw error;
-          }
-
-          return {
-            sellerId,
-            success: false,
-            orders: [],
-            hasPageDrift: false,
-          };
-        }
-      })
-    );
-
-    batchResults.forEach((result) => {
-      if (!result.success) {
-        failedSellerIds.push(result.sellerId);
-        return;
-      }
-
-      orderCopies.push(...result.orders);
-      hasPageDrift ||= result.hasPageDrift;
-    });
-  }
-
-  return { orderCopies, failedSellerIds, hasPageDrift };
-}
-
-function getTimestamp(value) {
-  const normalizedValue = normalizeText(value);
-
-  if (!normalizedValue) {
-    return null;
-  }
-
-  const timestamp = new Date(normalizedValue).getTime();
-
-  return Number.isNaN(timestamp) ? null : timestamp;
-}
-
-function choosePreferredOrder(currentOrder, candidateOrder) {
-  const currentUpdatedAt = getTimestamp(currentOrder?.updatedAt);
-  const candidateUpdatedAt = getTimestamp(candidateOrder?.updatedAt);
-
-  if (
-    candidateUpdatedAt !== null &&
-    (currentUpdatedAt === null || candidateUpdatedAt > currentUpdatedAt)
-  ) {
-    return candidateOrder;
-  }
-
-  return currentOrder;
-}
-
-function createSellerDirectory(sellers) {
-  return sellers.reduce((directory, seller) => {
-    const sellerId = getEntityId(seller);
-
-    if (!sellerId) {
-      return directory;
-    }
-
-    directory.set(sellerId, {
-      _id: sellerId,
-      name: normalizeText(seller?.name),
-      shopName: normalizeText(seller?.shopName),
-      email: normalizeText(seller?.email),
-    });
-
-    return directory;
-  }, new Map());
-}
-
-function enrichOrderSellers(order, sellerDirectory) {
-  const orderItems = Array.isArray(order?.orderItems)
-    ? order.orderItems.map((item) => {
-        if (!item || typeof item !== "object" || Array.isArray(item)) {
-          return item;
-        }
-
-        const sellerId = getEntityId(item.seller);
-        const seller = sellerDirectory.get(sellerId);
-
-        return seller ? { ...item, seller } : item;
-      })
-    : order?.orderItems;
-
-  return { ...order, orderItems };
-}
-
-function reconstructOrders(orderCopies, sellers) {
-  const ordersById = new Map();
-  let hasMalformedOrder = false;
-
-  orderCopies.forEach((order) => {
-    const orderId = getEntityId(order);
-
-    if (!orderId || !order || typeof order !== "object" || Array.isArray(order)) {
-      hasMalformedOrder = true;
-      return;
-    }
-
-    const existingOrder = ordersById.get(orderId);
-
-    ordersById.set(
-      orderId,
-      existingOrder ? choosePreferredOrder(existingOrder, order) : order
-    );
-  });
-
-  const sellerDirectory = createSellerDirectory(sellers);
-  const orders = Array.from(ordersById.values()).map((order) =>
-    enrichOrderSellers(order, sellerDirectory)
-  );
-
-  return { orders, hasMalformedOrder };
-}
-
-function createActualSummary(orders) {
-  const byStatus = createEmptyStatusCounts();
-  let hasUnknownStatus = false;
-
-  orders.forEach((order) => {
-    const orderStatus = normalizeText(order?.orderStatus).toLowerCase();
-
-    if (!Object.hasOwn(byStatus, orderStatus)) {
-      hasUnknownStatus = true;
-      return;
-    }
-
-    byStatus[orderStatus] += 1;
-  });
-
-  return {
-    summary: {
-      total: orders.length,
-      byStatus,
+      totalPages,
+      limit: query.limit,
     },
-    hasUnknownStatus,
   };
 }
 
-function normalizeDashboardSummary(response) {
+function normalizeOrderStatsResponse(response) {
   const data = response?.data;
-  const total = getNonNegativeInteger(data?.orders?.total);
-  const byStatus = createEmptyStatusCounts();
-  let isValid = total !== null;
 
-  ORDER_STATUS_KEYS.forEach((status) => {
-    const count = getNonNegativeInteger(data?.orders?.[status]);
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    throw new Error("The Order statistics response was invalid.");
+  }
 
-    if (count === null) {
-      isValid = false;
-    } else {
-      byStatus[status] = count;
-    }
-  });
-
-  const totalRevenue = getNonNegativeNumber(data?.totalRevenue);
-
-  return {
-    summary: isValid
-      ? {
-          total,
-          byStatus,
-          totalRevenue,
-        }
-      : null,
-    isValid,
-  };
-}
-
-function summariesMatch(actual, expected) {
-  return (
-    actual.total === expected.total &&
-    ORDER_STATUS_KEYS.every(
-      (status) => actual.byStatus[status] === expected.byStatus[status]
-    )
-  );
+  return data;
 }
 
 function createInitialState() {
   return {
     orders: [],
-    coverage: {
-      status: "idle",
-      expected: null,
-      actual: null,
-      failedSellerIds: [],
-      loadedAt: null,
-      isStale: false,
+    pagination: {
+      total: 0,
+      page: 1,
+      totalPages: 0,
+      limit: ORDERS_PAGE_SIZE,
     },
+    requestedQueryKey: "",
+    loadedQueryKey: "",
+    listLoadedAt: null,
+    listIsStale: false,
+    stats: null,
+    statsLoadedAt: null,
+    statsIsStale: false,
     details: null,
     detailsOrderId: null,
     requests: {
-      inventory: createRequestState(),
+      list: createRequestState(),
+      stats: createRequestState(),
       details: createRequestState(),
     },
   };
@@ -438,116 +175,62 @@ function createInitialState() {
 
 const initialState = createInitialState();
 
-export const fetchOrdersInventoryThunk = createAsyncThunk(
-  "orders/fetchInventory",
-  async (_options, { getState, rejectWithValue, signal }) => {
+export const fetchOrdersThunk = createAsyncThunk(
+  "orders/fetchOrders",
+  async (options = {}, { rejectWithValue, signal }) => {
+    const query = normalizeOrdersQuery(options);
+    const queryKey = createOrdersQueryKey(query);
+
     try {
-      const { sellers, hasMalformedSeller } = await fetchAllSellers(signal);
-      const { orderCopies, failedSellerIds, hasPageDrift } =
-        await fetchSellerOrderBatches(sellers, signal);
-      const { orders, hasMalformedOrder } = reconstructOrders(
-        orderCopies,
-        sellers
-      );
-      const { summary: actual, hasUnknownStatus } =
-        createActualSummary(orders);
-      const isSuperAdmin = getState().auth?.admin?.isSuperAdmin === true;
-
-      let expected = null;
-      let dashboardError = "";
-
-      if (isSuperAdmin) {
-        try {
-          const dashboardResponse = await getOrdersDashboardStats({ signal });
-          const normalizedDashboard =
-            normalizeDashboardSummary(dashboardResponse);
-
-          expected = normalizedDashboard.summary;
-
-          if (!normalizedDashboard.isValid) {
-            dashboardError = "The Dashboard statistics response was invalid.";
-          }
-        } catch (error) {
-          if (signal.aborted) {
-            throw error;
-          }
-
-          dashboardError = getApiErrorMessage(
-            error,
-            "Unable to load platform Order statistics."
-          );
-        }
-      }
-
-      const hasEnumerationProblem =
-        hasMalformedSeller ||
-        hasPageDrift ||
-        hasMalformedOrder ||
-        hasUnknownStatus ||
-        failedSellerIds.length > 0;
-
-      let coverageStatus = "partial";
-
-      if (!hasEnumerationProblem && !dashboardError) {
-        if (!isSuperAdmin) {
-          coverageStatus = "enumerated";
-        } else {
-          coverageStatus = summariesMatch(actual, expected)
-            ? "matched"
-            : "mismatch";
-        }
-      }
-
-      const partialReasons = [];
-
-      if (failedSellerIds.length > 0) {
-        partialReasons.push(
-          `${failedSellerIds.length} Seller Order request${
-            failedSellerIds.length === 1 ? "" : "s"
-          } failed.`
-        );
-      }
-
-      if (
-        hasMalformedSeller ||
-        hasPageDrift ||
-        hasMalformedOrder ||
-        hasUnknownStatus
-      ) {
-        partialReasons.push(
-          "Some Seller or Order records could not be validated safely."
-        );
-      }
-
-      if (dashboardError) {
-        partialReasons.push(dashboardError);
-      }
+      const response = await getOrders({ ...query, signal });
 
       return {
-        orders,
-        coverage: {
-          status: coverageStatus,
-          expected,
-          actual,
-          failedSellerIds,
-          loadedAt: new Date().toISOString(),
-          isStale: false,
-        },
-        shouldPreserveCachedOrders: hasEnumerationProblem,
-        requestError: partialReasons.join(" "),
+        ...normalizeOrdersResponse(response, query),
+        queryKey,
       };
+    } catch (error) {
+      return rejectWithValue(
+        getApiErrorMessage(error, "Unable to load Orders. Please try again.")
+      );
+    }
+  },
+  {
+    condition: (options = {}, { getState }) => {
+      if (options.force === true) {
+        return true;
+      }
+
+      const ordersState = getState().orders;
+      const queryKey = createOrdersQueryKey(options);
+
+      return !(
+        ordersState?.requests.list.status === REQUEST_STATUS.PENDING &&
+        ordersState.requestedQueryKey === queryKey
+      );
+    },
+  }
+);
+
+export const fetchOrderStatsThunk = createAsyncThunk(
+  "orders/fetchStats",
+  async (_options, { rejectWithValue, signal }) => {
+    try {
+      const response = await getOrderStats({ signal });
+
+      return normalizeOrderStatsResponse(response);
     } catch (error) {
       return rejectWithValue(
         getApiErrorMessage(
           error,
-          "Unable to reconstruct the available Order inventory. Please try again."
+          "Unable to load Order statistics. Please try again."
         )
       );
     }
   },
   {
-    condition: (_options, { getState }) =>
-      getState().orders?.requests.inventory.status !== REQUEST_STATUS.PENDING,
+    condition: (options = {}, { getState }) =>
+      options.force === true ||
+      getState().orders?.requests.stats.status !== REQUEST_STATUS.PENDING,
   }
 );
 
@@ -557,8 +240,8 @@ export const fetchOrderDetailsThunk = createAsyncThunk(
     const orderId = getOrderId(argument);
 
     try {
-      if (!orderId) {
-        throw new Error("Order ID is required.");
+      if (!isValidOrderId(orderId)) {
+        throw new Error("A valid Order ID is required.");
       }
 
       const response = await getOrderDetails(orderId, { signal });
@@ -568,7 +251,7 @@ export const fetchOrderDetailsThunk = createAsyncThunk(
         !order ||
         typeof order !== "object" ||
         Array.isArray(order) ||
-        getEntityId(order) !== orderId
+        getEntityId(order).toLowerCase() !== orderId.toLowerCase()
       ) {
         throw new Error("The Order details response was invalid.");
       }
@@ -611,13 +294,23 @@ const ordersSlice = createSlice({
   },
   selectors: {
     selectOrders: (sliceState) => sliceState.orders,
-    selectOrdersCoverage: (sliceState) => sliceState.coverage,
-    selectOrdersInventoryStatus: (sliceState) =>
-      sliceState.requests.inventory.status,
-    selectOrdersInventoryError: (sliceState) =>
-      sliceState.requests.inventory.error,
-    selectIsOrdersInventoryPending: (sliceState) =>
-      sliceState.requests.inventory.status === REQUEST_STATUS.PENDING,
+    selectOrdersPagination: (sliceState) => sliceState.pagination,
+    selectOrdersRequestedQueryKey: (sliceState) =>
+      sliceState.requestedQueryKey,
+    selectOrdersLoadedQueryKey: (sliceState) => sliceState.loadedQueryKey,
+    selectOrdersListLoadedAt: (sliceState) => sliceState.listLoadedAt,
+    selectOrdersListIsStale: (sliceState) => sliceState.listIsStale,
+    selectOrdersListStatus: (sliceState) => sliceState.requests.list.status,
+    selectOrdersListError: (sliceState) => sliceState.requests.list.error,
+    selectIsOrdersListPending: (sliceState) =>
+      sliceState.requests.list.status === REQUEST_STATUS.PENDING,
+    selectOrderStats: (sliceState) => sliceState.stats,
+    selectOrderStatsLoadedAt: (sliceState) => sliceState.statsLoadedAt,
+    selectOrderStatsIsStale: (sliceState) => sliceState.statsIsStale,
+    selectOrderStatsStatus: (sliceState) => sliceState.requests.stats.status,
+    selectOrderStatsError: (sliceState) => sliceState.requests.stats.error,
+    selectIsOrderStatsPending: (sliceState) =>
+      sliceState.requests.stats.status === REQUEST_STATUS.PENDING,
     selectOrderDetails: (sliceState) => sliceState.details,
     selectOrderDetailsOrderId: (sliceState) => sliceState.detailsOrderId,
     selectOrderDetailsStatus: (sliceState) =>
@@ -629,71 +322,72 @@ const ordersSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      .addCase(fetchOrdersInventoryThunk.pending, (state, action) => {
-        setRequestPending(state.requests.inventory, action.meta.requestId);
+      .addCase(fetchOrdersThunk.pending, (state, action) => {
+        state.requestedQueryKey = createOrdersQueryKey(action.meta.arg);
+        state.listIsStale = false;
+        setRequestPending(state.requests.list, action.meta.requestId);
       })
-      .addCase(fetchOrdersInventoryThunk.fulfilled, (state, action) => {
-        if (
-          !isRequestStateOwnedBy(
-            state.requests.inventory,
-            action.meta.requestId
-          )
-        ) {
+      .addCase(fetchOrdersThunk.fulfilled, (state, action) => {
+        if (!isRequestStateOwnedBy(state.requests.list, action.meta.requestId)) {
           return;
         }
 
-        const hasCachedInventory = Boolean(state.coverage.loadedAt);
-        const preserveCachedOrders =
-          hasCachedInventory && action.payload.shouldPreserveCachedOrders;
-
-        if (preserveCachedOrders) {
-          state.coverage.status = "partial";
-          state.coverage.failedSellerIds =
-            action.payload.coverage.failedSellerIds;
-          state.coverage.isStale = true;
-
-          if (action.payload.coverage.expected) {
-            state.coverage.expected = action.payload.coverage.expected;
-          }
-        } else {
-          state.orders = action.payload.orders;
-          state.coverage = action.payload.coverage;
-        }
-
-        if (action.payload.coverage.status === "partial") {
-          setRequestFailed(
-            state.requests.inventory,
-            action.payload.requestError ||
-              "The available Order inventory could not be refreshed completely."
-          );
-        } else {
-          setRequestSucceeded(state.requests.inventory);
-        }
+        state.orders = action.payload.orders;
+        state.pagination = action.payload.pagination;
+        state.loadedQueryKey = action.payload.queryKey;
+        state.listLoadedAt = new Date().toISOString();
+        state.listIsStale = false;
+        setRequestSucceeded(state.requests.list);
       })
-      .addCase(fetchOrdersInventoryThunk.rejected, (state, action) => {
-        if (
-          !isRequestStateOwnedBy(
-            state.requests.inventory,
-            action.meta.requestId
-          )
-        ) {
+      .addCase(fetchOrdersThunk.rejected, (state, action) => {
+        if (!isRequestStateOwnedBy(state.requests.list, action.meta.requestId)) {
           return;
         }
 
-        if (action.meta.aborted) {
-          resetRequestState(state.requests.inventory);
+        if (action.meta.aborted || action.meta.condition) {
+          resetRequestState(state.requests.list);
           return;
         }
 
-        const hasCachedInventory = Boolean(state.coverage.loadedAt);
-
-        state.coverage.status = "partial";
-        state.coverage.isStale = hasCachedInventory;
+        state.listIsStale = state.loadedQueryKey === state.requestedQueryKey;
         setRequestFailed(
-          state.requests.inventory,
+          state.requests.list,
           getRejectedActionErrorMessage(
             action,
-            "Unable to reconstruct the available Order inventory. Please try again."
+            "Unable to load Orders. Please try again."
+          )
+        );
+      })
+      .addCase(fetchOrderStatsThunk.pending, (state, action) => {
+        state.statsIsStale = false;
+        setRequestPending(state.requests.stats, action.meta.requestId);
+      })
+      .addCase(fetchOrderStatsThunk.fulfilled, (state, action) => {
+        if (!isRequestStateOwnedBy(state.requests.stats, action.meta.requestId)) {
+          return;
+        }
+
+        state.stats = action.payload;
+        state.statsLoadedAt = new Date().toISOString();
+        state.statsIsStale = false;
+        setRequestSucceeded(state.requests.stats);
+      })
+      .addCase(fetchOrderStatsThunk.rejected, (state, action) => {
+        if (!isRequestStateOwnedBy(state.requests.stats, action.meta.requestId)) {
+          return;
+        }
+
+        if (action.meta.aborted || action.meta.condition) {
+          resetRequestState(state.requests.stats);
+          return;
+        }
+
+        state.statsIsStale = Boolean(state.statsLoadedAt);
+        setRequestFailed(
+          state.requests.stats,
+          getRejectedActionErrorMessage(
+            action,
+            "Unable to load Order statistics. Please try again."
           )
         );
       })
@@ -726,7 +420,7 @@ const ordersSlice = createSlice({
           return;
         }
 
-        if (action.meta.aborted) {
+        if (action.meta.aborted || action.meta.condition) {
           resetRequestState(state.requests.details);
           return;
         }
@@ -747,10 +441,20 @@ export const { clearOrderDetails, resetOrdersState } = ordersSlice.actions;
 
 export const {
   selectOrders,
-  selectOrdersCoverage,
-  selectOrdersInventoryStatus,
-  selectOrdersInventoryError,
-  selectIsOrdersInventoryPending,
+  selectOrdersPagination,
+  selectOrdersRequestedQueryKey,
+  selectOrdersLoadedQueryKey,
+  selectOrdersListLoadedAt,
+  selectOrdersListIsStale,
+  selectOrdersListStatus,
+  selectOrdersListError,
+  selectIsOrdersListPending,
+  selectOrderStats,
+  selectOrderStatsLoadedAt,
+  selectOrderStatsIsStale,
+  selectOrderStatsStatus,
+  selectOrderStatsError,
+  selectIsOrderStatsPending,
   selectOrderDetails,
   selectOrderDetailsOrderId,
   selectOrderDetailsStatus,

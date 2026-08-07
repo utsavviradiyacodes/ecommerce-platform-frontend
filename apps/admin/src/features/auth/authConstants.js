@@ -11,6 +11,8 @@ export const ADMIN_PASSWORD_RECOVERY_PHASE = {
 export const ADMIN_PASSWORD_RECOVERY_NOTICE = {
   OTP_REPLACED:
     "The verification code expired or changed. Enter the latest code or request a new one.",
+  SECURE_RESET_SESSION_ENDED:
+    "Your secure reset session ended. Request and verify a new code.",
 };
 
 export const ADMIN_PASSWORD_RECOVERY_UNEXPECTED_RESPONSE_MESSAGE =
@@ -32,34 +34,20 @@ function hasPasswordRecoveryRequestData(passwordRecovery) {
   );
 }
 
-function hasVerifiedPasswordRecoveryOtp(passwordRecovery) {
-  return (
-    typeof passwordRecovery?.verifiedOtp === "string" &&
-    /^\d{6}$/.test(passwordRecovery.verifiedOtp)
-  );
-}
-
 export function isAdminPasswordRecoveryStateValid(passwordRecovery) {
   switch (passwordRecovery?.phase) {
     case ADMIN_PASSWORD_RECOVERY_PHASE.IDLE:
       return (
         typeof passwordRecovery.email === "string" &&
         passwordRecovery.userId == null &&
-        passwordRecovery.resendAvailableAt == null &&
-        passwordRecovery.verifiedOtp == null
+        passwordRecovery.resendAvailableAt == null
       );
 
     case ADMIN_PASSWORD_RECOVERY_PHASE.CODE_REQUESTED:
-      return (
-        hasPasswordRecoveryRequestData(passwordRecovery) &&
-        passwordRecovery.verifiedOtp == null
-      );
+      return hasPasswordRecoveryRequestData(passwordRecovery);
 
     case ADMIN_PASSWORD_RECOVERY_PHASE.CODE_VERIFIED:
-      return (
-        hasPasswordRecoveryRequestData(passwordRecovery) &&
-        hasVerifiedPasswordRecoveryOtp(passwordRecovery)
-      );
+      return hasPasswordRecoveryRequestData(passwordRecovery);
 
     case ADMIN_PASSWORD_RECOVERY_PHASE.CANCELLED:
     case ADMIN_PASSWORD_RECOVERY_PHASE.RESET_SUCCEEDED:
@@ -79,13 +67,8 @@ export function getSafeAdminPasswordRecoveryPhase(
   }
 
   const hasRequestData = hasPasswordRecoveryRequestData(passwordRecovery);
-  const hasVerifiedOtp = hasVerifiedPasswordRecoveryOtp(passwordRecovery);
 
   if (inferLegacyPhase) {
-    if (hasRequestData && hasVerifiedOtp) {
-      return ADMIN_PASSWORD_RECOVERY_PHASE.CODE_VERIFIED;
-    }
-
     return hasRequestData
       ? ADMIN_PASSWORD_RECOVERY_PHASE.CODE_REQUESTED
       : ADMIN_PASSWORD_RECOVERY_PHASE.IDLE;
@@ -94,12 +77,8 @@ export function getSafeAdminPasswordRecoveryPhase(
   if (
     passwordRecovery?.phase === ADMIN_PASSWORD_RECOVERY_PHASE.CODE_VERIFIED
   ) {
-    if (hasRequestData && hasVerifiedOtp) {
-      return ADMIN_PASSWORD_RECOVERY_PHASE.CODE_VERIFIED;
-    }
-
     return hasRequestData
-      ? ADMIN_PASSWORD_RECOVERY_PHASE.CODE_REQUESTED
+      ? ADMIN_PASSWORD_RECOVERY_PHASE.CODE_VERIFIED
       : ADMIN_PASSWORD_RECOVERY_PHASE.IDLE;
   }
 

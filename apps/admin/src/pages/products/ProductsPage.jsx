@@ -11,6 +11,7 @@ import ProductFormModal from "../../components/products/ProductFormModal.jsx";
 import ProductRejectModal from "../../components/products/ProductRejectModal.jsx";
 import ProductsTable from "../../components/products/ProductsTable.jsx";
 import ProductsToolbar from "../../components/products/ProductsToolbar.jsx";
+import { selectAdminSessionGeneration } from "../../features/auth/authSlice.js";
 
 import {
   fetchCategoriesThunk,
@@ -41,7 +42,6 @@ import {
   rejectProductThunk,
   requestProductsListRefresh,
   requestProductsListThunk,
-  resetProductMutationRequestStates,
   selectIsProductApprovePending,
   selectIsProductArchivePending,
   selectIsProductCreatePending,
@@ -390,7 +390,6 @@ function buildProductUpdateChanges(productData, originalProduct) {
   }
 
   if (
-    nextTags &&
     getTagsComparisonValue(nextTags) !== getTagsComparisonValue(originalTags)
   ) {
     changes.tags = nextTags;
@@ -422,13 +421,6 @@ function buildProductCreatePayload(productData) {
   return payload;
 }
 
-function isUnsupportedTagClear(productData, originalProduct) {
-  return (
-    getTagParts(originalProduct?.tags).length > 0 &&
-    getTagParts(productData?.tags).length === 0
-  );
-}
-
 function getSafeTotalPages(resultAction) {
   const totalPages = Number(resultAction.payload?.response?.data?.totalPages);
 
@@ -449,7 +441,7 @@ function PageFeedback({
       className={`mb-6 flex min-w-0 flex-col gap-3 rounded-xl border px-4 py-4 sm:flex-row sm:items-center sm:justify-between ${toneClasses.container}`}
     >
       <div
-        className={`min-w-0 flex-1 break-words whitespace-pre-wrap text-sm ${toneClasses.text}`}
+        className={`min-w-0 flex-1 wrap-break-word whitespace-pre-wrap text-sm ${toneClasses.text}`}
       >
         {children}
       </div>
@@ -564,7 +556,6 @@ function ProductsPage() {
     handleSubmit,
     reset,
     setValue,
-    setError,
     clearErrors,
     formState: { errors },
   } = useForm({
@@ -677,11 +668,6 @@ function ProductsPage() {
       : !hasUsableCategories || !hasUsableSubcategories
         ? "Classification options are not available. Current values are locked, but other Product fields remain editable."
         : "";
-
-  const tagsHint =
-    isEditMode && getTagParts(selectedProduct?.tags).length > 0
-      ? "Existing tags can be changed, but the backend cannot safely clear the complete tag set."
-      : "Separate tags with commas. Empty entries are ignored.";
 
   useLayoutEffect(() => {
     latestQueryArgsRef.current = currentQueryArgs;
@@ -840,7 +826,7 @@ function ProductsPage() {
   useEffect(() => {
     return () => {
       dispatch(clearProductDetails());
-      dispatch(resetProductMutationRequestStates());
+      dispatch(clearProductMutationRequestFeedback());
     };
   }, [dispatch]);
 
@@ -927,18 +913,9 @@ function ProductsPage() {
       return;
     }
 
+    const sessionGeneration = selectAdminSessionGeneration(store.getState());
+
     if (isEditMode) {
-      clearErrors("tags");
-
-      if (isUnsupportedTagClear(productData, selectedProduct)) {
-        setError("tags", {
-          type: "manual",
-          message:
-            "The backend cannot safely clear all existing tags. Enter at least one tag or restore the current tag set.",
-        });
-        return;
-      }
-
       const changes = buildProductUpdateChanges(productData, selectedProduct);
 
       if (!changes) {
@@ -953,7 +930,10 @@ function ProductsPage() {
         })
       );
 
-      if (!updateProductThunk.fulfilled.match(resultAction)) {
+      if (
+        !updateProductThunk.fulfilled.match(resultAction) ||
+        selectAdminSessionGeneration(store.getState()) !== sessionGeneration
+      ) {
         return;
       }
     } else {
@@ -961,7 +941,10 @@ function ProductsPage() {
         createProductThunk(buildProductCreatePayload(productData))
       );
 
-      if (!createProductThunk.fulfilled.match(resultAction)) {
+      if (
+        !createProductThunk.fulfilled.match(resultAction) ||
+        selectAdminSessionGeneration(store.getState()) !== sessionGeneration
+      ) {
         return;
       }
     }
@@ -1022,11 +1005,15 @@ function ProductsPage() {
       return;
     }
 
+    const sessionGeneration = selectAdminSessionGeneration(store.getState());
     const resultAction = await dispatch(
       approveProductThunk(approvingProduct._id)
     );
 
-    if (!approveProductThunk.fulfilled.match(resultAction)) {
+    if (
+      !approveProductThunk.fulfilled.match(resultAction) ||
+      selectAdminSessionGeneration(store.getState()) !== sessionGeneration
+    ) {
       return;
     }
 
@@ -1054,6 +1041,7 @@ function ProductsPage() {
       return;
     }
 
+    const sessionGeneration = selectAdminSessionGeneration(store.getState());
     const resultAction = await dispatch(
       rejectProductThunk({
         productId: rejectingProduct._id,
@@ -1061,7 +1049,10 @@ function ProductsPage() {
       })
     );
 
-    if (!rejectProductThunk.fulfilled.match(resultAction)) {
+    if (
+      !rejectProductThunk.fulfilled.match(resultAction) ||
+      selectAdminSessionGeneration(store.getState()) !== sessionGeneration
+    ) {
       return;
     }
 
@@ -1080,9 +1071,13 @@ function ProductsPage() {
 
     dispatch(clearToggleProductRequestFeedback());
 
+    const sessionGeneration = selectAdminSessionGeneration(store.getState());
     const resultAction = await dispatch(toggleProductStatusThunk(product._id));
 
-    if (!toggleProductStatusThunk.fulfilled.match(resultAction)) {
+    if (
+      !toggleProductStatusThunk.fulfilled.match(resultAction) ||
+      selectAdminSessionGeneration(store.getState()) !== sessionGeneration
+    ) {
       return;
     }
 
@@ -1109,11 +1104,15 @@ function ProductsPage() {
       return;
     }
 
+    const sessionGeneration = selectAdminSessionGeneration(store.getState());
     const resultAction = await dispatch(
       archiveProductThunk(archivingProduct._id)
     );
 
-    if (!archiveProductThunk.fulfilled.match(resultAction)) {
+    if (
+      !archiveProductThunk.fulfilled.match(resultAction) ||
+      selectAdminSessionGeneration(store.getState()) !== sessionGeneration
+    ) {
       return;
     }
 
@@ -1299,7 +1298,6 @@ function ProductsPage() {
           isSubmitting={isFormMutationPending}
           relationshipsLocked={relationshipsLocked}
           dependencyMessage={dependencyLockMessage}
-          tagsHint={tagsHint}
           isCategoryLoading={isCategoriesListPending && !hasUsableCategories}
           isSubcategoryLoading={
             isSubcategoriesListPending && !hasUsableSubcategories

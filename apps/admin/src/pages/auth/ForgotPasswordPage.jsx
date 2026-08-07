@@ -8,6 +8,7 @@ import AuthFormContainer from "../../components/layout/auth/AuthFormContainer.js
 import Label from "../../components/form/Label.jsx";
 import InputField from "../../components/form/input/InputField.jsx";
 import Button from "../../components/ui/button/Button.jsx";
+import { ChevronLeftIcon } from "../../icons/index.js";
 
 import {
   clearAdminPasswordResetOtpRequestFeedback,
@@ -77,7 +78,7 @@ function ForgotPasswordPage() {
         disabled={isPasswordResetOtpRequestPending}
         className="mb-7 inline-flex cursor-pointer items-center gap-2 rounded-sm text-sm font-medium text-gray-500 transition-colors hover:text-gray-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400 dark:hover:text-gray-300 dark:focus-visible:outline-brand-400"
       >
-        <span>←</span>
+        <ChevronLeftIcon className="size-5 shrink-0" />
         Return to Sign In
       </button>
 
@@ -88,7 +89,7 @@ function ForgotPasswordPage() {
 
         <p className="text-sm text-gray-500 dark:text-gray-400">
           Enter the email address associated with your admin account, and we’ll
-          send you a verification code to reset your password.
+          send you a password-reset code.
         </p>
       </div>
 
@@ -131,7 +132,9 @@ function ForgotPasswordPage() {
             className="w-full"
             disabled={isPasswordResetOtpRequestPending}
           >
-            {isPasswordResetOtpRequestPending ? "Sending OTP..." : "Send OTP"}
+            {isPasswordResetOtpRequestPending
+              ? "Sending reset code..."
+              : "Send reset code"}
           </Button>
         </div>
       </form>

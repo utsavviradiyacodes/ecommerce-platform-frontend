@@ -7,6 +7,7 @@ import PageBreadcrumb from "../../components/common/PageBreadcrumb.jsx";
 import ChangePasswordCard from "../../components/settings/ChangePasswordCard.jsx";
 
 import {
+  changeAdminPasswordSucceeded,
   changeAdminPasswordThunk,
   clearSettingsChangePasswordRequestFeedback,
   selectIsSettingsChangePasswordPending,
@@ -66,7 +67,7 @@ function SettingsPage() {
 
     const resultAction = await dispatch(changeAdminPasswordThunk(passwordData));
 
-    if (!changeAdminPasswordThunk.fulfilled.match(resultAction)) {
+    if (!changeAdminPasswordSucceeded.match(resultAction)) {
       return;
     }
 

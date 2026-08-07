@@ -23,6 +23,9 @@ import {
 
 export const SELLERS_PAGE_SIZE = 10;
 
+const UNEXPECTED_SELLER_RESPONSE_MESSAGE =
+  "Received an unexpected Seller list response.";
+
 const pendingSellersListRequests = new Map();
 let sellersListRequestSequence = 0;
 
@@ -105,27 +108,69 @@ function getTargetActiveStatus(argument) {
     : null;
 }
 
-function normalizeSellersListResponse(response, fallbackPage) {
-  const data = response?.data ?? {};
-  const sellers = Array.isArray(data.sellers) ? data.sellers : [];
-  const parsedTotal = Number(data.total);
-  const parsedPage = Number(data.page);
-  const parsedTotalPages = Number(data.totalPages);
+function isNonArrayObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isUsableText(value) {
+  return typeof value === "string" && Boolean(value.trim());
+}
+
+function parseSupportedInteger(value, { positive = false } = {}) {
+  const normalizedValue =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && /^\d+$/.test(value.trim())
+        ? Number(value.trim())
+        : Number.NaN;
+
+  if (
+    !Number.isFinite(normalizedValue) ||
+    !Number.isInteger(normalizedValue) ||
+    (positive ? normalizedValue < 1 : normalizedValue < 0)
+  ) {
+    return null;
+  }
+
+  return normalizedValue;
+}
+
+function isUsableSeller(value) {
+  return (
+    isNonArrayObject(value) &&
+    Boolean(getSellerId(value)) &&
+    isUsableText(value.name) &&
+    isUsableText(value.email) &&
+    isUsableText(value.shopName)
+  );
+}
+
+function normalizeSellersListResponse(response) {
+  const data = response?.data;
+  const sellers = data?.sellers;
+  const total = parseSupportedInteger(data?.total);
+  const page = parseSupportedInteger(data?.page, { positive: true });
+  const totalPages = parseSupportedInteger(data?.totalPages, {
+    positive: true,
+  });
+
+  if (
+    response?.success !== true ||
+    !isNonArrayObject(data) ||
+    !Array.isArray(sellers) ||
+    !sellers.every(isUsableSeller) ||
+    total === null ||
+    page === null ||
+    totalPages === null
+  ) {
+    throw new Error(UNEXPECTED_SELLER_RESPONSE_MESSAGE);
+  }
 
   return {
     sellers,
-    total:
-      Number.isFinite(parsedTotal) && parsedTotal >= 0
-        ? parsedTotal
-        : sellers.length,
-    page:
-      Number.isInteger(parsedPage) && parsedPage > 0
-        ? parsedPage
-        : fallbackPage,
-    totalPages:
-      Number.isInteger(parsedTotalPages) && parsedTotalPages > 0
-        ? parsedTotalPages
-        : 1,
+    total,
+    page,
+    totalPages,
   };
 }
 
@@ -185,7 +230,12 @@ export const fetchSellersThunk = createAsyncThunk(
 
     try {
       const response = await getSellers(query);
-      return { response, query, queryKey };
+      return {
+        normalizedList: normalizeSellersListResponse(response),
+        response,
+        query,
+        queryKey,
+      };
     } catch (error) {
       return rejectWithValue(
         getApiErrorMessage(error, "Unable to load sellers. Please try again.")
@@ -443,10 +493,7 @@ const sellersSlice = createSlice({
           return;
         }
 
-        const normalizedList = normalizeSellersListResponse(
-          action.payload.response,
-          action.payload.query.page
-        );
+        const normalizedList = action.payload.normalizedList;
 
         state.sellers = normalizedList.sellers;
         state.total = normalizedList.total;
@@ -655,6 +702,13 @@ export function getSellersListRequestSequence() {
 
 export function getPendingSellersListRequest(options = {}) {
   return pendingSellersListRequests.get(resolveSellersQueryKey(options)) ?? null;
+}
+
+export function abortAndClearPendingSellersListRequests() {
+  const pendingRequests = Array.from(pendingSellersListRequests.values());
+
+  pendingSellersListRequests.clear();
+  pendingRequests.forEach((request) => request.promise?.abort?.());
 }
 
 export function requestSellersListThunk(options = {}) {
